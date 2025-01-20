@@ -1,12 +1,13 @@
 use std::io;
 
+use async_std::fs::create_dir;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::Frame;
 use ratatui_explorer::FileExplorer;
 
 use crate::{
     config::DecklistConfig,
-    startup::StartupChecks,
+    startup::{create_directory, StartupChecks},
     tui::core::{ui, MenuTabs, Tui},
 };
 
@@ -112,6 +113,7 @@ impl App {
             KeyCode::Char('4') => self.active_tab = MenuTabs::Help,
             KeyCode::Char('5') => self.active_tab = MenuTabs::Debug,
             KeyCode::Char('q') => self.exit(),
+            KeyCode::Enter => enter_press(self),
             _ => {}
         }
     }
@@ -119,5 +121,39 @@ impl App {
     /// exit function
     fn exit(&mut self) {
         self.exit = true
+    }
+}
+
+fn enter_press(app: &mut App) {
+    match app.active_tab {
+        MenuTabs::Welcome => {
+            if !app.directory_exist {
+                match create_directory() {
+                    Ok(()) => {
+                        let ok_msg = match app.os {
+                            SupportedOS::Linux => "Directory created at ~/.config/decklist",
+                            SupportedOS::Windows => "directory created", // TODO: update
+                            SupportedOS::Mac => "directory created",
+                            SupportedOS::Unsupported => "unknown operating system",
+                        };
+                        app.directory_status = ok_msg.to_string();
+                        app.directory_exist = true;
+                    }
+                    Err(e) => app.directory_status = e.to_string(),
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn c_press(app: &mut App) {
+    match app.active_tab {
+        MenuTabs::Welcome => {
+            if !app.config_exist {
+                // TODO: make config exist
+            }
+        }
+        _ => {}
     }
 }

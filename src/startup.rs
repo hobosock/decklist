@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    fs::{self, create_dir},
+    fs::{self, create_dir, File},
     path::Path,
 };
 
@@ -97,7 +97,7 @@ fn directory_exist() -> bool {
 }
 
 /// creates config directory if it doesn't exist
-fn create_directory() -> Result<(), std::io::Error> {
+pub fn create_directory() -> Result<(), std::io::Error> {
     let mut result = Err(std::io::Error::last_os_error()); // TODO: sucks
     if let Some(project_dir) = ProjectDirs::from("", "", "decklist") {
         let path = project_dir.config_dir();
@@ -113,4 +113,17 @@ fn config_exist(dir: ProjectDirs) -> Result<DecklistConfig, Box<dyn Error>> {
     let read_result = fs::read_to_string(config_path)?;
     let config: DecklistConfig = toml::from_str(&read_result)?;
     Ok(config)
+}
+
+/// creates a default config.toml file
+pub fn create_config() -> Result<(), std::io::Error> {
+    // TODO: make default config file
+    // NOTE: using unwrap() because directory should exist before this function can be called
+    let mut config_path = ProjectDirs::from("", "", "decklist")
+        .unwrap()
+        .config_dir()
+        .as_os_str()
+        .to_os_string();
+    config_path.push("config.toml");
+    let mut file = File::create(config_path)?;
 }

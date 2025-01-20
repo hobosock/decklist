@@ -1,0 +1,16 @@
+[package]
+name = "decklist"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-std = "1.13.0"
+crossterm = { version = "0.28.1" }
+directories-next = "2.0.0"
+ratatui = "0.29.0"
+ratatui-explorer = "0.1.2"
+serde = { version = "1.0.217", features = ["derive"] }
+tokio = { version = "1.42.0", features = ["full"] }
+tokio-util = "0.7.13"
+toml = "0.8.19"
+futures = "0.3.31"

@@ -111,7 +111,7 @@ pub fn create_directory() -> Result<(), std::io::Error> {
 /// checks for existance of a config.toml
 fn config_exist(dir: ProjectDirs) -> Result<DecklistConfig, Box<dyn Error>> {
     let mut config_path = dir.config_dir().as_os_str().to_os_string();
-    config_path.push("config.toml");
+    config_path.push("/config.toml");
     let read_result = fs::read_to_string(config_path)?;
     let config: DecklistConfig = toml::from_str(&read_result)?;
     Ok(config)
@@ -127,7 +127,5 @@ pub fn create_config() -> Result<(), Box<dyn Error>> {
         .to_os_string();
     config_path.push("/config.toml");
     let default_text = toml::to_string(&DecklistConfig::default())?;
-    //let default_text = "[database]\n\nlocation = ~/.config/decklist/\nmax_age = 7";
-    //let default_text = DecklistConfig::default().serialize(serializer)
     Ok(fs::write(config_path, default_text)?)
 }

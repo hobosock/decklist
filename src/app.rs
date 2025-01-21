@@ -7,7 +7,7 @@ use ratatui_explorer::FileExplorer;
 
 use crate::{
     config::DecklistConfig,
-    startup::{create_directory, StartupChecks},
+    startup::{create_config, create_directory, StartupChecks},
     tui::core::{ui, MenuTabs, Tui},
 };
 
@@ -113,6 +113,7 @@ impl App {
             KeyCode::Char('4') => self.active_tab = MenuTabs::Help,
             KeyCode::Char('5') => self.active_tab = MenuTabs::Debug,
             KeyCode::Char('q') => self.exit(),
+            KeyCode::Char('c') => c_press(self),
             KeyCode::Enter => enter_press(self),
             _ => {}
         }
@@ -151,7 +152,21 @@ fn c_press(app: &mut App) {
     match app.active_tab {
         MenuTabs::Welcome => {
             if !app.config_exist {
-                // TODO: make config exist
+                match create_config() {
+                    Ok(()) => {
+                        let ok_msg = match app.os {
+                            SupportedOS::Linux => {
+                                "Config created at ~/.config/decklist/config.toml"
+                            }
+                            SupportedOS::Windows => "directory created", // TODO: update
+                            SupportedOS::Mac => "directory created",
+                            SupportedOS::Unsupported => "unknown operating system",
+                        };
+                        app.config_status = ok_msg.to_string();
+                        app.config_exist = true;
+                    }
+                    Err(e) => app.config_status = e.to_string(),
+                }
             }
         }
         _ => {}

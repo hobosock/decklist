@@ -1,10 +1,12 @@
 use std::{
     error::Error,
     fs::{self, create_dir, File},
+    io::Write,
     path::Path,
 };
 
 use directories_next::ProjectDirs;
+use serde::Serialize;
 
 use crate::{app::SupportedOS, config::DecklistConfig};
 
@@ -66,7 +68,7 @@ pub async fn startup_checks() -> StartupChecks {
             }
             Err(e) => {
                 config_status = format!(
-                    "Failed to load config file: {}.  Using default settings...",
+                    "Failed to load config file: {}.  Press C to create.  Using default settings...",
                     e
                 );
             }
@@ -116,14 +118,16 @@ fn config_exist(dir: ProjectDirs) -> Result<DecklistConfig, Box<dyn Error>> {
 }
 
 /// creates a default config.toml file
-pub fn create_config() -> Result<(), std::io::Error> {
-    // TODO: make default config file
+pub fn create_config() -> Result<(), Box<dyn Error>> {
     // NOTE: using unwrap() because directory should exist before this function can be called
     let mut config_path = ProjectDirs::from("", "", "decklist")
         .unwrap()
         .config_dir()
         .as_os_str()
         .to_os_string();
-    config_path.push("config.toml");
-    let mut file = File::create(config_path)?;
+    config_path.push("/config.toml");
+    let default_text = toml::to_string(&DecklistConfig::default())?;
+    //let default_text = "[database]\n\nlocation = ~/.config/decklist/\nmax_age = 7";
+    //let default_text = DecklistConfig::default().serialize(serializer)
+    Ok(fs::write(config_path, default_text)?)
 }

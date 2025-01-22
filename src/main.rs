@@ -2,6 +2,7 @@ use std::io;
 
 pub mod app;
 pub mod config;
+pub mod database;
 pub mod startup;
 pub mod tui;
 

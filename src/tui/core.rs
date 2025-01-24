@@ -24,7 +24,7 @@ use ratatui_explorer::FileExplorer;
 
 use crate::{
     app::App,
-    startup::{startup_checks, StartupChecks},
+    startup::{self, startup_checks, StartupChecks},
 };
 
 /// a type alias for terminal type used
@@ -35,6 +35,7 @@ pub type Tui = Terminal<CrosstermBackend<Stdout>>;
 pub enum MenuTabs {
     #[default]
     Welcome,
+    Database,
     Collection,
     Deck,
     Help,
@@ -80,6 +81,7 @@ pub fn ui(
                 app.database_exist = startup_checks.database_exists;
                 app.collection_exist = startup_checks.collection_exists;
                 app.directory_exist = startup_checks.directory_exists;
+                app.data_directory_exist = startup_checks.data_directory_exists;
                 app.database_status = startup_checks.database_status;
                 app.directory_status = startup_checks.directory_status;
                 app.config_status = startup_checks.config_status;
@@ -99,11 +101,17 @@ pub fn ui(
         .split(frame.area());
 
     // tabs for switching between menus
-    let tabs = Tabs::new(vec!["1. Welcome", "2. Collection", "3. Deck", "4. Help"])
-        .block(Block::default().title("| Menu |").borders(Borders::ALL))
-        .style(Style::default().white())
-        .highlight_style(Style::default().cyan().bold())
-        .select(app.active_tab as usize);
+    let tabs = Tabs::new(vec![
+        "1. Welcome",
+        "2. Database",
+        "3. Collection",
+        "4. Deck",
+        "5. Help",
+    ])
+    .block(Block::default().title("| Menu |").borders(Borders::ALL))
+    .style(Style::default().white())
+    .highlight_style(Style::default().cyan().bold())
+    .select(app.active_tab as usize);
 
     // define main/center area for display
     let version = Title::from(

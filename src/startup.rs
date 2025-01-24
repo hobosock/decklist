@@ -8,7 +8,7 @@ use std::{
 use directories_next::ProjectDirs;
 use serde::Serialize;
 
-use crate::{app::SupportedOS, config::DecklistConfig};
+use crate::{app::SupportedOS, config::DecklistConfig, database::scryfall::read_scryfall_database};
 
 /// returns enum of detected OS
 /// useful for matching system specific file paths, config files, etc.
@@ -29,6 +29,7 @@ pub fn get_os() -> SupportedOS {
 /// to be passed back to main application thread and used to update main app struct
 pub struct StartupChecks {
     pub directory_exists: bool,
+    pub data_directory_exists: bool,
     pub config_exists: bool,
     pub database_exists: bool,
     pub collection_exists: bool,
@@ -44,6 +45,7 @@ pub struct StartupChecks {
 pub async fn startup_checks() -> StartupChecks {
     let os = get_os();
     let directory_exists = directory_exist();
+    let data_directory_exists = data_directory_exist();
     let mut config_exists = false;
     let mut config = DecklistConfig::default();
     let mut directory_status = "directory does not exist.  Hit enter to create it now.".to_string();
@@ -60,7 +62,7 @@ pub async fn startup_checks() -> StartupChecks {
             "Directory found at {:?}",
             project_dir.config_dir().to_path_buf()
         );
-        match config_exist(project_dir) {
+        match config_exist(project_dir.clone()) {
             Ok(c) => {
                 config = c;
                 config_status = "Config successfully loaded.".to_string();
@@ -73,10 +75,18 @@ pub async fn startup_checks() -> StartupChecks {
                 );
             }
         }
+        // TODO: check database exist/age/etc.
+        let mut data_path = project_dir.data_local_dir().as_os_str().to_os_string();
+        data_path.push("/short.json");
+        match read_scryfall_database(&data_path) {
+            Ok(_) => database_status = "Loaded cards".to_string(),
+            Err(e) => database_status = e.to_string(),
+        }
     }
 
     StartupChecks {
         directory_exists,
+        data_directory_exists,
         config_exists,
         database_exists: false,
         collection_exists: false,
@@ -98,11 +108,31 @@ fn directory_exist() -> bool {
     result
 }
 
+/// checks for existence of decklist data directory
+fn data_directory_exist() -> bool {
+    let mut result = false;
+    if let Some(project_dir) = ProjectDirs::from("", "", "decklist") {
+        let path = project_dir.data_local_dir();
+        result = path.exists();
+    }
+    result
+}
+
 /// creates config directory if it doesn't exist
 pub fn create_directory() -> Result<(), std::io::Error> {
     let mut result = Err(std::io::Error::last_os_error()); // TODO: sucks
     if let Some(project_dir) = ProjectDirs::from("", "", "decklist") {
         let path = project_dir.config_dir();
+        result = create_dir(path);
+    }
+    result
+}
+
+/// creates data directory if it doesn't exist
+pub fn create_data_directory() -> Result<(), std::io::Error> {
+    let mut result = Err(std::io::Error::last_os_error());
+    if let Some(data_dir) = ProjectDirs::from("", "", "decklist") {
+        let path = data_dir.data_local_dir();
         result = create_dir(path);
     }
     result

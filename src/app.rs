@@ -7,7 +7,8 @@ use ratatui_explorer::FileExplorer;
 
 use crate::{
     config::DecklistConfig,
-    startup::{create_config, create_directory, StartupChecks},
+    database::scryfall::ScryfallCard,
+    startup::{create_config, create_data_directory, create_directory, StartupChecks},
     tui::core::{ui, MenuTabs, Tui},
 };
 
@@ -25,6 +26,7 @@ pub struct App {
     pub startup: bool,
     pub os: SupportedOS,
     pub directory_exist: bool,
+    pub data_directory_exist: bool,
     pub config_exist: bool,
     pub database_exist: bool,
     pub collection_exist: bool,
@@ -38,6 +40,7 @@ pub struct App {
         std::sync::mpsc::Sender<StartupChecks>,
         std::sync::mpsc::Receiver<StartupChecks>,
     ),
+    pub card_database: Vec<ScryfallCard>,
 }
 
 impl Default for App {
@@ -47,6 +50,7 @@ impl Default for App {
             startup: false,
             os: SupportedOS::default(),
             directory_exist: false,
+            data_directory_exist: false,
             config_exist: false,
             database_exist: false,
             collection_exist: false,
@@ -57,6 +61,7 @@ impl Default for App {
             config: DecklistConfig::default(),
             active_tab: MenuTabs::default(),
             startup_channel: std::sync::mpsc::channel(),
+            card_database: Vec::new(),
         }
     }
 }
@@ -108,10 +113,11 @@ impl App {
         match key_event.code {
             // TODO: delete after app framework is complete
             KeyCode::Char('1') => self.active_tab = MenuTabs::Welcome,
-            KeyCode::Char('2') => self.active_tab = MenuTabs::Collection,
-            KeyCode::Char('3') => self.active_tab = MenuTabs::Deck,
-            KeyCode::Char('4') => self.active_tab = MenuTabs::Help,
-            KeyCode::Char('5') => self.active_tab = MenuTabs::Debug,
+            KeyCode::Char('2') => self.active_tab = MenuTabs::Database,
+            KeyCode::Char('3') => self.active_tab = MenuTabs::Collection,
+            KeyCode::Char('4') => self.active_tab = MenuTabs::Deck,
+            KeyCode::Char('5') => self.active_tab = MenuTabs::Help,
+            KeyCode::Char('0') => self.active_tab = MenuTabs::Debug,
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('c') => c_press(self),
             KeyCode::Enter => enter_press(self),
@@ -141,6 +147,14 @@ fn enter_press(app: &mut App) {
                         app.directory_exist = true;
                     }
                     Err(e) => app.directory_status = e.to_string(),
+                }
+            }
+            if !app.data_directory_exist {
+                match create_data_directory() {
+                    Ok(()) => {
+                        app.data_directory_exist = true;
+                    } // TODO: message?
+                    Err(_e) => {}
                 }
             }
         }

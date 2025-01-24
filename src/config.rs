@@ -16,7 +16,7 @@ impl Default for DecklistConfig {
         // TODO: error proof here
         let project_dir = ProjectDirs::from("", "", "decklist")
             .unwrap()
-            .config_dir()
+            .data_local_dir()
             .to_string_lossy()
             .deref()
             .to_string(); // LOL

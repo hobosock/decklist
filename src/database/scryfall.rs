@@ -27,14 +27,17 @@ pub struct ScryfallCard {
     pub layout: CardLayouts,
     pub highres_image: bool,
     pub image_status: ImageStatus,
+    #[serde(default)]
     pub image_uris: ImageUris,
+    #[serde(default)]
     pub mana_cost: String, // i64,
     pub cmc: f64,
     pub type_line: String, // Vec<CardTypes>,
+    #[serde(default)]
     pub oracle_text: String,
     pub colors: Option<Vec<MtGColors>>,
     pub color_identity: Option<Vec<MtGColors>>,
-    pub keywords: Vec<MtGKeyWords>,
+    pub keywords: Vec<String>, // Vec<MtGKeyWords>,
     pub legalities: Legalities,
     pub games: Vec<GameFormat>,
     pub reserved: bool,
@@ -51,6 +54,7 @@ pub struct ScryfallCard {
     pub set_type: ScryfallSetType,
     pub set_uri: String,
     pub set_search_uri: String,
+    #[serde(default)]
     pub rulings_uri: String,
     pub prints_search_uri: String,
     pub collector_number: String, // TODO: convert to i64 in post?
@@ -58,7 +62,9 @@ pub struct ScryfallCard {
     pub rarity: MtGRarity,
     #[serde(default)]
     pub flavor_text: String,
+    #[serde(default)]
     pub card_back_id: String,
+    #[serde(default)]
     pub artist: String,
     #[serde(default)] // TODO: replace with function call instead?  see serde docs
     pub artist_ids: Vec<String>,
@@ -92,7 +98,8 @@ pub enum ScryfallObject {
 pub enum Languages {
     #[serde(rename = "en")]
     English,
-    Spanish,
+    #[serde(rename = "ja")]
+    Japanese,
 }
 
 /// different card layout options
@@ -100,7 +107,48 @@ pub enum Languages {
 pub enum CardLayouts {
     #[serde(rename = "normal")]
     Normal,
+    #[serde(rename = "art_series")]
+    ArtSeries,
+    #[serde(rename = "token")]
+    Token,
+    #[serde(rename = "class")]
+    Class,
+    #[serde(rename = "planar")]
+    Planar,
+    #[serde(rename = "saga")]
+    Saga,
+    #[serde(rename = "scheme")]
+    Scheme,
+    #[serde(rename = "double_faced_token")]
+    DoubleFacedToken,
+    #[serde(rename = "meld")]
+    Meld,
+    #[serde(rename = "prototype")]
+    Prototype,
+    #[serde(rename = "vanguard")]
+    Vanguard,
+    #[serde(rename = "transform")]
+    Transform,
+    #[serde(rename = "emblem")]
+    Emblem,
+    #[serde(rename = "modal_dfc")]
+    ModalDualFaceCard,
+    #[serde(rename = "split")]
     Split,
+    #[serde(rename = "adventure")]
+    Adventure,
+    #[serde(rename = "augment")]
+    Augment,
+    #[serde(rename = "flip")]
+    Flip,
+    #[serde(rename = "host")]
+    Host,
+    #[serde(rename = "mutate")]
+    Mutate,
+    #[serde(rename = "leveler")]
+    Leveler,
+    #[serde(rename = "case")]
+    Case,
 }
 
 /// scryfall image statuses
@@ -108,11 +156,12 @@ pub enum CardLayouts {
 pub enum ImageStatus {
     #[serde(rename = "highres_scan")]
     HighRes,
+    #[serde(rename = "lowres")]
     LowRes,
 }
 
 /// struct for all Scryfall image uris
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct ImageUris {
     pub small: String,
     pub normal: String,
@@ -152,6 +201,7 @@ pub enum MtGColors {
 pub enum MtGKeyWords {
     Trample,
     Haste,
+    #[serde(rename = "First strike")]
     FirstStrike,
     Enchant,
     Entwine,
@@ -163,6 +213,7 @@ pub enum MtGKeyWords {
     Horsemanship,
     Deathtouch,
     Defender,
+    #[serde(rename = "Double strike")]
     DoubleStrike,
     Equip,
     Flash,
@@ -171,7 +222,7 @@ pub enum MtGKeyWords {
     Lifelink,
     Protection,
     Reach,
-    Vigiliance,
+    Vigilance,
     Ward,
     Menace,
     Activate,
@@ -198,6 +249,7 @@ pub enum MtGKeyWords {
     Shroud,
     Banding,
     Rampage,
+    #[serde(rename = "Cumulative upkeep")]
     CumulativeUpkeep,
     Flanking,
     Phasing,
@@ -220,7 +272,7 @@ pub enum MtGKeyWords {
     Soulshift,
     Splice,
     Offering,
-    Ninjitsu,
+    Ninjutsu,
     Epic,
     Convoke,
     Dredge,
@@ -232,6 +284,7 @@ pub enum MtGKeyWords {
     Graft,
     Recover,
     Ripple,
+    #[serde(rename = "Split second")]
     SplitSecond,
     Vanishing,
     Absorb,
@@ -249,6 +302,7 @@ pub enum MtGKeyWords {
     Prowl,
     Reinforce,
     Conspire,
+    Connive,
     Persist,
     Wither,
     Retrace,
@@ -259,9 +313,12 @@ pub enum MtGKeyWords {
     Annihilator,
     LevelUp,
     Rebound,
+    #[serde(rename = "Totem armor")]
     TotemArmor,
     Infect,
+    #[serde(rename = "Battle cry")]
     BattleCry,
+    #[serde(rename = "Living weapon")]
     LivingWeapon,
     Undying,
     Miracle,
@@ -276,6 +333,7 @@ pub enum MtGKeyWords {
     Bestow,
     Tribute,
     Dethrone,
+    #[serde(rename = "Hidden agenda")]
     HiddenAgenda,
     Outlast,
     Prowess,
@@ -351,6 +409,105 @@ pub enum MtGKeyWords {
     Plainswalk,
     Forestwalk,
     Mountainwalk,
+    Enrage,
+    Domain,
+    Corrupted,
+    #[serde(rename = "Role token")]
+    RoleToken,
+    Revolt,
+    #[serde(rename = "Join forces")]
+    JoinForces,
+    Plot,
+    Multikicker,
+    Spree,
+    #[serde(rename = "Shrieking Gargoyles")]
+    ShriekingGargoyles,
+    Heroic,
+    Discover,
+    Cohort,
+    Eerie,
+    #[serde(rename = "Open an Attraction")]
+    OpenAnAttraction,
+    #[serde(rename = "Phalanx Commander")]
+    PhalanxCommander,
+    #[serde(rename = "Choose a background")]
+    ChooseABackground,
+    Addendum,
+    Megamorph,
+    Morbid,
+    Compleated,
+    Threshold,
+    Prototype,
+    Seek,
+    Conjure,
+    Magecraft,
+    Rulebreaker,
+    Feed,
+    Friends,
+    Descend,
+    Channel,
+    Gift,
+    #[serde(rename = "Partner with")]
+    ParternWith,
+    #[serde(rename = "Will of the council")]
+    WillOfTheCouncil,
+    Specialize,
+    Chroma,
+    Suspend,
+    Plainscycling,
+    Islandcycling,
+    Swampcycling,
+    Forestcycling,
+    Mountaincycling,
+    Landcycling,
+    Typecycling,
+    #[serde(rename = "Collect evidence")]
+    CollectEvidence,
+    #[serde(rename = "Basic landcycling")]
+    BasicLandcycling,
+    Landfall,
+    Disguise,
+    Incubate,
+    #[serde(rename = "Pack tactics")]
+    PackTactics,
+    Augment,
+    Coven,
+    Bloodrush,
+    #[serde(rename = "Secret council")]
+    SecretCouncil,
+    Blitz,
+    #[serde(rename = "Manifest dread")]
+    ManifestDread,
+    #[serde(rename = "Hexproof from")]
+    HexproofFrom,
+    #[serde(rename = "Crash Landing")]
+    CrashLanding,
+    #[serde(rename = "Medicus Ministorum")]
+    MedicusMinistorum,
+    #[serde(rename = "Tempting offer")]
+    TemptingOffer,
+    Metalcraft,
+    #[serde(rename = "Sonic Booster")]
+    SonicBooster,
+    #[serde(rename = "Doctor's companion")]
+    DoctorsCompanion,
+    Bargain,
+    #[serde(rename = "Double agenda")]
+    DoubleAenda,
+    Toxic,
+    Casualty,
+    #[serde(rename = "Venture into the dungeon")]
+    Dungeon,
+    Delirium,
+    #[serde(rename = "Spell mastery")]
+    SpellMastery,
+    #[serde(rename = "Friends forever")]
+    FriendsForever,
+    Kinship,
+    Disarm,
+    Detonate,
+    Avoidance,
+    Grandeur,
 }
 
 /// card legality options for a specific format
@@ -402,6 +559,10 @@ pub enum GameFormat {
     MTGO,
     #[serde(rename = "arena")]
     Arena,
+    #[serde(rename = "astral")]
+    Astral,
+    #[serde(rename = "sega")]
+    Sega,
 }
 
 /// different kinds of finishes recognized by Scryfall
@@ -411,6 +572,8 @@ pub enum ScryfallFinishes {
     Foil,
     #[serde(rename = "nonfoil")]
     NonFoil,
+    #[serde(rename = "etched")]
+    Etched,
 }
 
 /// Scryfall set classifications
@@ -430,6 +593,32 @@ pub enum ScryfallSetType {
     DraftInnovation,
     #[serde(rename = "funny")]
     Funny,
+    #[serde(rename = "memorabilia")]
+    Memorabilia,
+    #[serde(rename = "token")]
+    Token,
+    #[serde(rename = "duel_deck")]
+    DuelDeck,
+    #[serde(rename = "starter")]
+    Starter,
+    #[serde(rename = "planechase")]
+    Planechase,
+    #[serde(rename = "archenemy")]
+    ArchEnemy,
+    #[serde(rename = "minigame")]
+    Minigame,
+    #[serde(rename = "box")]
+    Box,
+    #[serde(rename = "vanguard")]
+    Vanguard,
+    #[serde(rename = "promo")]
+    Promo,
+    #[serde(rename = "masterpiece")]
+    Masterpiece,
+    #[serde(rename = "arsenal")]
+    Arsenal,
+    #[serde(rename = "treasure_chest")]
+    TreasureChest,
 }
 
 /// card rarities
@@ -443,6 +632,10 @@ pub enum MtGRarity {
     Rare,
     #[serde(rename = "mythic")]
     Mythic,
+    #[serde(rename = "special")]
+    Special,
+    #[serde(rename = "bonus")]
+    Bonus,
 }
 
 /// card border colors
@@ -452,6 +645,12 @@ pub enum BorderColor {
     White,
     #[serde(rename = "black")]
     Black,
+    #[serde(rename = "silver")]
+    Silver,
+    #[serde(rename = "borderless")]
+    Borderless,
+    #[serde(rename = "gold")]
+    Gold,
 }
 
 /// Scryfall prices struct
@@ -470,16 +669,22 @@ pub struct ScryfallPrices {
 pub struct ScryfallRelated {
     #[serde(default)]
     pub gatherer: String,
+    #[serde(default)]
     pub tcgplayer_infinite_articles: String,
+    #[serde(default)]
     pub tcgplayer_infinite_decks: String,
+    #[serde(default)]
     pub edhrec: String,
 }
 
 /// struct of Scryfall purchase URIs
 #[derive(Deserialize, Default)]
 pub struct ScryfallPurchase {
+    #[serde(default)]
     pub tcgplayer: String,
+    #[serde(default)]
     pub cardmarket: String,
+    #[serde(default)]
     pub cardhoarder: String,
 }
 

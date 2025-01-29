@@ -16,16 +16,13 @@ use ratatui::{
     text::{Line, Text},
     widgets::{
         block::{Position, Title},
-        Block, Borders, Paragraph, Tabs,
+        Block, Borders, Paragraph, Tabs, Wrap,
     },
     Frame, Terminal,
 };
 use ratatui_explorer::FileExplorer;
 
-use crate::{
-    app::App,
-    startup::{self, startup_checks, StartupChecks},
-};
+use crate::{app::App, startup::startup_checks};
 
 /// a type alias for terminal type used
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
@@ -184,6 +181,7 @@ fn draw_welcome_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         database_line,
         collection_line,
     ]))
+    .wrap(Wrap { trim: true })
     .centered()
     .block(main_block);
     frame.render_widget(status_paragraph, chunk);

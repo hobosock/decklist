@@ -1,14 +1,15 @@
 use std::{
     error::Error,
-    fs::{self, create_dir, File},
-    io::Write,
-    path::Path,
+    fs::{self, create_dir},
 };
 
 use directories_next::ProjectDirs;
-use serde::Serialize;
 
-use crate::{app::SupportedOS, config::DecklistConfig, database::scryfall::read_scryfall_database};
+use crate::{
+    app::SupportedOS,
+    config::DecklistConfig,
+    database::scryfall::{read_scryfall_database, ScryfallCard},
+};
 
 /// returns enum of detected OS
 /// useful for matching system specific file paths, config files, etc.
@@ -38,6 +39,7 @@ pub struct StartupChecks {
     pub config_status: String,
     pub database_status: String,
     pub collection_status: String,
+    pub database_cards: Option<Vec<ScryfallCard>>,
 }
 
 /// checks for supported OS, then looks at OS appropriate file locations
@@ -50,9 +52,11 @@ pub async fn startup_checks() -> StartupChecks {
     let mut config = DecklistConfig::default();
     let mut directory_status = "directory does not exist.  Hit enter to create it now.".to_string();
     let mut config_status = "No directory for config file.".to_string();
+    let mut database_exists = false;
     let mut database_status =
         "No config file to indicate database location.  Load file manually in [DATABASE] tab."
             .to_string();
+    let mut database_cards = None;
     let mut collection_status =
         "No config file to indicate collection location.  Load file manually in [COLLECTION] tab."
             .to_string();
@@ -79,7 +83,11 @@ pub async fn startup_checks() -> StartupChecks {
         let mut data_path = project_dir.data_local_dir().as_os_str().to_os_string();
         data_path.push("/short.json");
         match read_scryfall_database(&data_path) {
-            Ok(_) => database_status = "Loaded cards".to_string(),
+            Ok(cards) => {
+                database_exists = true;
+                database_status = "Loaded cards".to_string();
+                database_cards = Some(cards);
+            }
             Err(e) => database_status = e.to_string(),
         }
     }
@@ -88,13 +96,14 @@ pub async fn startup_checks() -> StartupChecks {
         directory_exists,
         data_directory_exists,
         config_exists,
-        database_exists: false,
+        database_exists,
         collection_exists: false,
         config,
         directory_status,
         config_status,
         database_status,
         collection_status,
+        database_cards,
     }
 }
 

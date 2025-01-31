@@ -72,7 +72,7 @@ pub fn ui(
         });
         match app.startup_channel.1.try_recv() {
             Ok(startup_checks) => {
-                // TODO: just ad a StartupChecks struct to app struct, pass in one line
+                // TODO: just add a StartupChecks struct to app struct, pass in one line
                 app.startup = true;
                 app.config_exist = startup_checks.config_exists;
                 app.database_exist = startup_checks.database_exists;
@@ -126,7 +126,7 @@ pub fn ui(
     let mut instructions_text = Text::from(vec![Line::from(vec!["test".into()])]);
     match app.active_tab {
         MenuTabs::Welcome => {
-            let mut instructions_text = Text::from(vec![Line::from(vec![
+            instructions_text = Text::from(vec![Line::from(vec![
                 "<Q>".yellow().bold(),
                 " Quit ".into(),
                 "<C>".yellow().bold(),
@@ -135,6 +135,36 @@ pub fn ui(
                 " Download Database ".into(),
             ])]);
             draw_welcome_main(app, frame, chunks[1], main_block);
+        }
+        MenuTabs::Collection => {
+            instructions_text = Text::from(vec![Line::from(vec![
+                "<Q>".yellow().bold(),
+                " Quit ".into(),
+                "<S>".yellow().bold(),
+                " Load/reset file ".into(),
+                "<Up/Down>".yellow().bold(),
+                " Navigate ".into(),
+                "<Left/Backspace>".yellow().bold(),
+                " Exit Directory ".into(),
+                "<Right/Enter>".yellow().bold(),
+                " Down Directory ".into(),
+            ])]);
+            draw_collection_main(app, frame, chunks[1], main_block, explorer);
+        }
+        MenuTabs::Deck => {
+            instructions_text = Text::from(vec![Line::from(vec![
+                "<Q>".yellow().bold(),
+                " Quit ".into(),
+                "<S>".yellow().bold(),
+                " Load/reset file ".into(),
+                "<Up/Down>".yellow().bold(),
+                " Navigate ".into(),
+                "<Left/Backspace>".yellow().bold(),
+                " Exit Directory ".into(),
+                "<Right/Enter>".yellow().bold(),
+                " Down Directory ".into(),
+            ])]);
+            draw_collection_main(app, frame, chunks[1], main_block, explorer2);
         }
         _ => {}
     }
@@ -185,4 +215,68 @@ fn draw_welcome_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
     .centered()
     .block(main_block);
     frame.render_widget(status_paragraph, chunk);
+}
+
+/// draws the main block of the Collection tab
+fn draw_collection_main(
+    app: &mut App,
+    frame: &mut Frame,
+    chunk: Rect,
+    main_block: Block,
+    explorer: &mut FileExplorer,
+) {
+    // split into two sections - small one for info text and main for displaying file explorer
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(2)])
+        .split(chunk);
+    if app.collection.is_none() {
+        app.collection_status = "Please select a collection file from Moxfield.".to_string();
+    } else {
+        app.collection_status = format!(
+            "Collection loaded successfully.  Using {}",
+            app.collection_file_name.as_ref().unwrap() // NOTE: should exist if you get to this branch
+        );
+    }
+    let file_paragraph = Paragraph::new(app.collection_status.clone())
+        .wrap(Wrap { trim: true })
+        .block(main_block); // TODO: this looks bad?
+    frame.render_widget(file_paragraph, sections[0]);
+    frame.render_widget(&explorer.widget(), sections[1]);
+    // TODO: set default file path to Documents or something?
+    let file = explorer.current();
+    app.collection_file_name = Some(file.name().to_string());
+    app.collection_file = Some(file.clone());
+}
+
+/// draws the main block of the Decklist tab
+fn draw_decklist_main(
+    app: &mut App,
+    frame: &mut Frame,
+    chunk: Rect,
+    main_block: Block,
+    explorer: &mut FileExplorer,
+) {
+    // split into two sections - small one for info text and main for displaying file explorer
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(2)])
+        .split(chunk);
+    if app.decklist.is_none() {
+        app.decklist_status = "Please select a decklist.".to_string();
+    } else {
+        app.decklist_status = format!(
+            "Decklist loaded successfully.  Using {}",
+            app.decklist_file_name.as_ref().unwrap() // NOTE: should exist if you get to this branch
+        );
+    }
+    let file_paragraph = Paragraph::new(app.decklist_status.clone())
+        .wrap(Wrap { trim: true })
+        .block(main_block); // TODO: this looks bad?
+    frame.render_widget(file_paragraph, sections[0]);
+    frame.render_widget(&explorer.widget(), sections[1]);
+    // TODO: set default file path to Documents or something?
+    let file = explorer.current();
+    app.decklist_file_name = Some(file.name().to_string());
+    app.decklist_file = Some(file.clone());
 }

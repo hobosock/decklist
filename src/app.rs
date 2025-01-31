@@ -1,11 +1,11 @@
 use std::io;
 
-use async_std::fs::create_dir;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::Frame;
-use ratatui_explorer::FileExplorer;
+use ratatui_explorer::{File, FileExplorer};
 
 use crate::{
+    collection::CollectionCard,
     config::DecklistConfig,
     database::scryfall::ScryfallCard,
     startup::{create_config, create_data_directory, create_directory, StartupChecks},
@@ -41,6 +41,13 @@ pub struct App {
         std::sync::mpsc::Receiver<StartupChecks>,
     ),
     pub card_database: Vec<ScryfallCard>,
+    pub collection: Option<Vec<CollectionCard>>,
+    pub collection_file_name: Option<String>,
+    pub collection_file: Option<File>,
+    pub decklist: Option<Vec<CollectionCard>>,
+    pub decklist_file_name: Option<String>,
+    pub decklist_file: Option<File>,
+    pub decklist_status: String,
 }
 
 impl Default for App {
@@ -62,6 +69,13 @@ impl Default for App {
             active_tab: MenuTabs::default(),
             startup_channel: std::sync::mpsc::channel(),
             card_database: Vec::new(),
+            collection: None,
+            collection_file_name: None,
+            collection_file: None,
+            decklist: None,
+            decklist_file_name: None,
+            decklist_file: None,
+            decklist_status: String::new(),
         }
     }
 }
@@ -104,7 +118,12 @@ impl App {
             }
             _ => {}
         };
-        // TODO: handle file explorer tabs inputs here
+        if self.active_tab == MenuTabs::Collection {
+            explorer.handle(&event)?;
+        }
+        if self.active_tab == MenuTabs::Deck {
+            explorer2.handle(&event)?;
+        }
         Ok(())
     }
 
@@ -120,6 +139,7 @@ impl App {
             KeyCode::Char('0') => self.active_tab = MenuTabs::Debug,
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('c') => c_press(self),
+            KeyCode::Char('s') => s_press(self),
             KeyCode::Enter => enter_press(self),
             _ => {}
         }
@@ -185,4 +205,8 @@ fn c_press(app: &mut App) {
         }
         _ => {}
     }
+}
+
+fn s_press(app: &mut App) {
+    // TODO: load files here
 }

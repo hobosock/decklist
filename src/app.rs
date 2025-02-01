@@ -1,11 +1,12 @@
 use std::io;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use futures::join;
 use ratatui::Frame;
 use ratatui_explorer::{File, FileExplorer};
 
 use crate::{
-    collection::CollectionCard,
+    collection::{read_moxfield_collection, CollectionCard},
     config::DecklistConfig,
     database::scryfall::ScryfallCard,
     startup::{create_config, create_data_directory, create_directory, StartupChecks},
@@ -48,6 +49,7 @@ pub struct App {
     pub decklist_file_name: Option<String>,
     pub decklist_file: Option<File>,
     pub decklist_status: String,
+    pub debug_string: String,
 }
 
 impl Default for App {
@@ -76,6 +78,7 @@ impl Default for App {
             decklist_file_name: None,
             decklist_file: None,
             decklist_status: String::new(),
+            debug_string: String::new(),
         }
     }
 }
@@ -208,5 +211,34 @@ fn c_press(app: &mut App) {
 }
 
 fn s_press(app: &mut App) {
-    // TODO: load files here
+    match app.active_tab {
+        MenuTabs::Collection => {
+            if app.collection_file.is_some() {
+                app.debug_string += "Collection file is some.\n";
+                let path_str = app.collection_file.as_ref().unwrap().path().to_str();
+                if path_str.is_some() {
+                    app.debug_string += "path_str is some\n";
+                    match read_moxfield_collection(path_str.unwrap()) {
+                        Ok(collection) => {
+                            app.debug_string += "read csv successfully";
+                            app.collection = Some(collection);
+                            app.collection_status =
+                                format!("Collection loaded successfully: {}", path_str.unwrap());
+                        }
+                        Err(e) => {
+                            app.collection_status = e.to_string();
+                            app.debug_string += &format!("Error reading CSV: {}", e);
+                        }
+                    }
+                } else {
+                    app.collection_status = "Encountered error with file path.".to_string();
+                    app.debug_string += "path_str is none\n"
+                }
+            } else {
+                app.debug_string += "Collection file is none.\n";
+            }
+        }
+        MenuTabs::Deck => {}
+        _ => {}
+    }
 }

@@ -164,7 +164,10 @@ pub fn ui(
                 "<Right/Enter>".yellow().bold(),
                 " Down Directory ".into(),
             ])]);
-            draw_collection_main(app, frame, chunks[1], main_block, explorer2);
+            draw_decklist_main(app, frame, chunks[1], main_block, explorer2);
+        }
+        MenuTabs::Debug => {
+            draw_debug_main(app, frame, chunks[1], main_block);
         }
         _ => {}
     }
@@ -176,6 +179,13 @@ pub fn ui(
     // render
     frame.render_widget(tabs, chunks[0]);
     frame.render_widget(instructions, chunks[2]);
+}
+
+fn draw_debug_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: Block) {
+    let debug_text = Paragraph::new(Text::from(app.debug_string.clone()))
+        .wrap(Wrap { trim: true })
+        .block(main_block);
+    frame.render_widget(debug_text, chunk);
 }
 
 /// draw the main window on the welcome tab
@@ -231,7 +241,8 @@ fn draw_collection_main(
         .constraints([Constraint::Length(3), Constraint::Min(2)])
         .split(chunk);
     if app.collection.is_none() {
-        app.collection_status = "Please select a collection file from Moxfield.".to_string();
+        // TODO: cleanup dead branch
+        // app.collection_status = "Please select a collection file from Moxfield.".to_string();
     } else {
         app.collection_status = format!(
             "Collection loaded successfully.  Using {}",

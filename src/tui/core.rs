@@ -239,7 +239,7 @@ fn draw_collection_main(
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(2)])
-        .split(chunk);
+        .split(main_block.inner(chunk));
     if app.collection.is_none() {
         // TODO: cleanup dead branch
         // app.collection_status = "Please select a collection file from Moxfield.".to_string();
@@ -249,9 +249,8 @@ fn draw_collection_main(
             app.collection_file_name.as_ref().unwrap() // NOTE: should exist if you get to this branch
         );
     }
-    let file_paragraph = Paragraph::new(app.collection_status.clone())
-        .wrap(Wrap { trim: true })
-        .block(main_block); // TODO: this looks bad?
+    let file_paragraph = Paragraph::new(app.collection_status.clone()).wrap(Wrap { trim: true });
+    frame.render_widget(main_block, chunk);
     frame.render_widget(file_paragraph, sections[0]);
     frame.render_widget(&explorer.widget(), sections[1]);
     // TODO: set default file path to Documents or something?
@@ -272,7 +271,7 @@ fn draw_decklist_main(
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(2)])
-        .split(chunk);
+        .split(main_block.inner(chunk));
     if app.decklist.is_none() {
         app.decklist_status = "Please select a decklist.".to_string();
     } else {
@@ -281,9 +280,8 @@ fn draw_decklist_main(
             app.decklist_file_name.as_ref().unwrap() // NOTE: should exist if you get to this branch
         );
     }
-    let file_paragraph = Paragraph::new(app.decklist_status.clone())
-        .wrap(Wrap { trim: true })
-        .block(main_block); // TODO: this looks bad?
+    let file_paragraph = Paragraph::new(app.decklist_status.clone()).wrap(Wrap { trim: true });
+    frame.render_widget(main_block, chunk);
     frame.render_widget(file_paragraph, sections[0]);
     frame.render_widget(&explorer.widget(), sections[1]);
     // TODO: set default file path to Documents or something?

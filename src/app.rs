@@ -221,7 +221,6 @@ fn s_press(app: &mut App) {
                     match read_moxfield_collection(path_str.unwrap()) {
                         Ok(collection) => {
                             app.debug_string += "read csv successfully\n\n";
-                            app.debug_string += &format!("{:?}", collection);
                             app.collection = Some(collection);
                             app.collection_status =
                                 format!("Collection loaded successfully: {}", path_str.unwrap());

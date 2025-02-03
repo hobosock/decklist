@@ -3,6 +3,8 @@ use std::{error::Error, fs::File};
 use csv::ReaderBuilder;
 use serde::Deserialize;
 
+use crate::app::App;
+
 /// simple card format for collections and decklists
 /// just the card name and the quantity
 #[derive(Deserialize, Clone, Debug)]
@@ -22,7 +24,7 @@ pub fn read_moxfield_collection(file_name: &str) -> Result<Vec<CollectionCard>, 
         .from_reader(file);
     let mut iter = reader.deserialize();
     let mut collection = Vec::new();
-    if let Some(result) = iter.next() {
+    for result in iter {
         let record: CollectionCard = result?;
         collection.push(record);
     }

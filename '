@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 /// simple card format for collections and decklists
 /// just the card name and the quantity
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone)]
 pub struct CollectionCard {
     #[serde(rename = "Name")]
     pub name: String,
@@ -26,8 +26,7 @@ pub fn read_moxfield_collection(file_name: &str) -> Result<Vec<CollectionCard>, 
         let record: CollectionCard = result?;
         collection.push(record);
     }
-    let squashed = squash_collection(collection);
-    Ok(squashed)
+    Ok(collection)
 }
 
 /// Moxfield collection treats different printings of the same card as individual line items, but
@@ -39,20 +38,14 @@ fn squash_collection(collection_in: Vec<CollectionCard>) -> Vec<CollectionCard> 
         if collection_out.len() > 0 {
             // check if name already exists
             let mut matched = false;
-            let mut bonus = 0;
-            let mut index = 0;
-            for (i, squashed) in collection_out.iter().enumerate() {
+            for (i, squashed) in collection_out..iter().enumerate() {
                 if card.name == squashed.name {
                     matched = true;
-                    bonus = card.quantity;
-                    index = i;
-                    break;
+                    collection_out[i].quantity += card.quantity;
                 }
             }
             if !matched {
                 collection_out.push(card.clone());
-            } else {
-                collection_out[index].quantity += bonus;
             }
         } else {
             // go ahead and copy it over

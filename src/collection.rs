@@ -1,9 +1,10 @@
-use std::{error::Error, fs::File};
+use std::{
+    error::Error,
+    fs::{self, File},
+};
 
 use csv::ReaderBuilder;
 use serde::Deserialize;
-
-use crate::app::App;
 
 /// simple card format for collections and decklists
 /// just the card name and the quantity
@@ -22,7 +23,7 @@ pub fn read_moxfield_collection(file_name: &str) -> Result<Vec<CollectionCard>, 
         .has_headers(true)
         .delimiter(b',')
         .from_reader(file);
-    let mut iter = reader.deserialize();
+    let iter = reader.deserialize();
     let mut collection = Vec::new();
     for result in iter {
         let record: CollectionCard = result?;
@@ -62,4 +63,29 @@ fn squash_collection(collection_in: Vec<CollectionCard>) -> Vec<CollectionCard> 
         }
     }
     collection_out
+}
+
+pub fn read_decklist(file_name: &str) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
+    let mut decklist: Vec<CollectionCard> = Vec::new();
+    let file_str = fs::read_to_string(file_name)?;
+    let rows: Vec<&str> = file_str.split('\n').collect();
+    for line in rows.iter() {
+        // check for "Sideboard" text
+        if line.to_lowercase() == "sideboard" {
+            continue;
+        }
+        // separate by first space to get number and name
+        let words: Vec<&str> = line.split_whitespace().collect();
+        if words.len() < 2 {
+            continue; // NOTE: not a valid line
+        }
+        // convert number to integer
+        let str_num = words[0].parse::<u64>()?;
+        let card_name = words[1..].join(" ");
+        decklist.push(CollectionCard {
+            name: card_name,
+            quantity: str_num,
+        });
+    }
+    Ok(decklist)
 }

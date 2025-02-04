@@ -1,12 +1,11 @@
 use std::io;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use futures::join;
 use ratatui::Frame;
 use ratatui_explorer::{File, FileExplorer};
 
 use crate::{
-    collection::{read_moxfield_collection, CollectionCard},
+    collection::{read_decklist, read_moxfield_collection, CollectionCard},
     config::DecklistConfig,
     database::scryfall::ScryfallCard,
     startup::{create_config, create_data_directory, create_directory, StartupChecks},
@@ -238,7 +237,23 @@ fn s_press(app: &mut App) {
                 app.debug_string += "Collection file is none.\n";
             }
         }
-        MenuTabs::Deck => {}
+        MenuTabs::Deck => {
+            if app.decklist_file.is_some() {
+                let path_str = app.decklist_file.as_ref().unwrap().path().to_str();
+                if path_str.is_some() {
+                    match read_decklist(path_str.unwrap()) {
+                        Ok(decklist) => {
+                            app.decklist = Some(decklist);
+                            app.decklist_status =
+                                format!("Decklist loaded successfully: {}", path_str.unwrap());
+                        }
+                        Err(e) => {
+                            app.decklist_status = e.to_string();
+                        }
+                    }
+                }
+            }
+        }
         _ => {}
     }
 }

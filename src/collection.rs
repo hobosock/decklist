@@ -1,5 +1,6 @@
 use std::{
     error::Error,
+    fmt::Display,
     fs::{self, File},
 };
 
@@ -14,6 +15,12 @@ pub struct CollectionCard {
     pub name: String,
     #[serde(rename = "Count")]
     pub quantity: u64,
+}
+
+impl Display for CollectionCard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.quantity, self.name)
+    }
 }
 
 /// reads in Moxfield collection CSV and turns it into a Vec<CollectionCard>
@@ -65,6 +72,9 @@ fn squash_collection(collection_in: Vec<CollectionCard>) -> Vec<CollectionCard> 
     collection_out
 }
 
+/// reads in a decklist file in this format:
+/// ## Card Name
+/// safely skips over Sideboard label, blank lines, etc.
 pub fn read_decklist(file_name: &str) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
     let mut decklist: Vec<CollectionCard> = Vec::new();
     let file_str = fs::read_to_string(file_name)?;
@@ -88,4 +98,35 @@ pub fn read_decklist(file_name: &str) -> Result<Vec<CollectionCard>, Box<dyn Err
         });
     }
     Ok(decklist)
+}
+
+/// compares the decklist to the loaded collection
+/// outputs a list of missing cards
+pub fn find_missing_cards(
+    collection: Vec<CollectionCard>,
+    decklist: Vec<CollectionCard>,
+) -> Option<Vec<CollectionCard>> {
+    let mut missing_cards: Vec<CollectionCard> = Vec::new();
+    for card in decklist.iter() {
+        let mut found = false;
+        for item in collection.iter() {
+            if item.name == card.name {
+                found = true;
+                if item.quantity < card.quantity {
+                    let mut missing_card = card.clone();
+                    missing_card.quantity -= item.quantity;
+                    missing_cards.push(missing_card);
+                }
+                continue;
+            }
+        }
+        if !found {
+            missing_cards.push(card.clone());
+        }
+    }
+    if missing_cards.is_empty() {
+        return None;
+    } else {
+        return Some(missing_cards);
+    }
 }

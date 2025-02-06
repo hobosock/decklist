@@ -1,11 +1,11 @@
 use std::io;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use ratatui::Frame;
+use ratatui::{widgets::ScrollbarState, Frame};
 use ratatui_explorer::{File, FileExplorer};
 
 use crate::{
-    collection::{read_decklist, read_moxfield_collection, CollectionCard},
+    collection::{find_missing_cards, read_decklist, read_moxfield_collection, CollectionCard},
     config::DecklistConfig,
     database::scryfall::ScryfallCard,
     startup::{create_config, create_data_directory, create_directory, StartupChecks},
@@ -49,6 +49,9 @@ pub struct App {
     pub decklist_file: Option<File>,
     pub decklist_status: String,
     pub debug_string: String,
+    pub missing_cards: Option<Vec<CollectionCard>>,
+    pub missing_scroll: usize,
+    pub missing_scroll_state: ScrollbarState,
 }
 
 impl Default for App {
@@ -78,6 +81,9 @@ impl Default for App {
             decklist_file: None,
             decklist_status: String::new(),
             debug_string: String::new(),
+            missing_cards: None,
+            missing_scroll: 0,
+            missing_scroll_state: ScrollbarState::default(),
         }
     }
 }
@@ -137,12 +143,15 @@ impl App {
             KeyCode::Char('2') => self.active_tab = MenuTabs::Database,
             KeyCode::Char('3') => self.active_tab = MenuTabs::Collection,
             KeyCode::Char('4') => self.active_tab = MenuTabs::Deck,
-            KeyCode::Char('5') => self.active_tab = MenuTabs::Help,
+            KeyCode::Char('5') => self.active_tab = MenuTabs::Missing,
+            KeyCode::Char('6') => self.active_tab = MenuTabs::Help,
             KeyCode::Char('0') => self.active_tab = MenuTabs::Debug,
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('c') => c_press(self),
             KeyCode::Char('s') => s_press(self),
             KeyCode::Enter => enter_press(self),
+            KeyCode::Up => up_press(self),
+            KeyCode::Down => down_press(self),
             _ => {}
         }
     }
@@ -223,6 +232,12 @@ fn s_press(app: &mut App) {
                             app.collection = Some(collection);
                             app.collection_status =
                                 format!("Collection loaded successfully: {}", path_str.unwrap());
+                            if app.collection.is_some() && app.decklist.is_some() {
+                                app.missing_cards = find_missing_cards(
+                                    app.collection.clone().unwrap(),
+                                    app.decklist.clone().unwrap(),
+                                );
+                            }
                         }
                         Err(e) => {
                             app.collection_status = e.to_string();
@@ -246,6 +261,12 @@ fn s_press(app: &mut App) {
                             app.decklist = Some(decklist);
                             app.decklist_status =
                                 format!("Decklist loaded successfully: {}", path_str.unwrap());
+                            if app.collection.is_some() && app.decklist.is_some() {
+                                app.missing_cards = find_missing_cards(
+                                    app.collection.clone().unwrap(),
+                                    app.decklist.clone().unwrap(),
+                                );
+                            }
                         }
                         Err(e) => {
                             app.decklist_status = e.to_string();
@@ -253,6 +274,26 @@ fn s_press(app: &mut App) {
                     }
                 }
             }
+        }
+        _ => {}
+    }
+}
+
+fn up_press(app: &mut App) {
+    match app.active_tab {
+        MenuTabs::Missing => {
+            let _ = app.missing_scroll.saturating_add(1);
+            app.missing_scroll_state = app.missing_scroll_state.position(app.missing_scroll);
+        }
+        _ => {}
+    }
+}
+
+fn down_press(app: &mut App) {
+    match app.active_tab {
+        MenuTabs::Missing => {
+            let _ = app.missing_scroll.saturating_sub(1);
+            app.missing_scroll_state = app.missing_scroll_state.position(app.missing_scroll);
         }
         _ => {}
     }

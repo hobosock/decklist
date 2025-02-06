@@ -9,14 +9,14 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     prelude::CrosstermBackend,
     style::{Style, Stylize},
     symbols::border,
     text::{Line, Text},
     widgets::{
         block::{Position, Title},
-        Block, Borders, Paragraph, Tabs, Wrap,
+        Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Tabs, Wrap,
     },
     Frame, Terminal,
 };
@@ -35,6 +35,7 @@ pub enum MenuTabs {
     Database,
     Collection,
     Deck,
+    Missing,
     Help,
     Debug,
 }
@@ -103,7 +104,8 @@ pub fn ui(
         "2. Database",
         "3. Collection",
         "4. Deck",
-        "5. Help",
+        "5. Missing",
+        "6. Help",
     ])
     .block(Block::default().title("| Menu |").borders(Borders::ALL))
     .style(Style::default().white())
@@ -165,6 +167,9 @@ pub fn ui(
                 " Down Directory ".into(),
             ])]);
             draw_decklist_main(app, frame, chunks[1], main_block, explorer2);
+        }
+        MenuTabs::Missing => {
+            draw_missing_main(app, frame, chunks[1], main_block);
         }
         MenuTabs::Debug => {
             draw_debug_main(app, frame, chunks[1], main_block);
@@ -288,4 +293,30 @@ fn draw_decklist_main(
     let file = explorer.current();
     app.decklist_file_name = Some(file.name().to_string());
     app.decklist_file = Some(file.clone());
+}
+
+/// draws the main block of the missing cards tab
+fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: Block) {
+    if app.missing_cards.is_some() {
+        let mut lines: Vec<Line> = Vec::new();
+        for card in app.missing_cards.clone().unwrap() {
+            lines.push(Line::from(format!("{}", card)));
+        }
+        let missing_paragraph = Paragraph::new(lines.clone())
+            .scroll((app.missing_scroll as u16, 0))
+            .block(main_block);
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("^"))
+            .end_symbol(Some("v"));
+        let mut scrollbar_state = ScrollbarState::new(lines.len()).position(app.missing_scroll);
+        frame.render_widget(missing_paragraph, chunk);
+        frame.render_stateful_widget(
+            scrollbar,
+            chunk.inner(Margin {
+                vertical: 1,
+                horizontal: 0,
+            }),
+            &mut scrollbar_state,
+        );
+    }
 }

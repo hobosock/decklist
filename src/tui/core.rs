@@ -302,13 +302,13 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         for card in app.missing_cards.clone().unwrap() {
             lines.push(Line::from(format!("{}", card)));
         }
-        let missing_paragraph = Paragraph::new(lines.clone())
+        let _ = app.missing_scroll_state.content_length(lines.len());
+        let missing_paragraph = Paragraph::new(lines)
             .scroll((app.missing_scroll as u16, 0))
             .block(main_block);
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("^"))
             .end_symbol(Some("v"));
-        let mut scrollbar_state = ScrollbarState::new(lines.len()).position(app.missing_scroll);
         frame.render_widget(missing_paragraph, chunk);
         frame.render_stateful_widget(
             scrollbar,
@@ -316,7 +316,7 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
                 vertical: 1,
                 horizontal: 0,
             }),
-            &mut scrollbar_state,
+            &mut app.missing_scroll_state,
         );
     }
 }

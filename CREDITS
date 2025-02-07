@@ -1,0 +1,14 @@
+The following crates (libraries) were used in this project under the MIT license.
+async-std
+cli-clipboard
+crossterm
+csv
+directories-next
+futures
+ratatui
+ratatui-explorer
+serde
+serde_json
+tokio
+tokio-util
+toml

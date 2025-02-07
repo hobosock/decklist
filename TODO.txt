@@ -1,6 +1,3 @@
-add scrollbars to Collection and Decklist tabs
-when a collection or decklist file is loaded, display file contents instead of file explorer
-use a button (Esc?) to show explorer again and select another file
 export missing cards to clipboard and text file in the correct format
 make event handling a separate thread
 render terminal a few times a second
@@ -8,4 +5,3 @@ make file loading and writing asynchronous
 check missing cards against database to make sure they are valid cards
 store collection file location in config file
 download new database file if current one is out of date
-collection status text should turn green on Welcome screen after file is loaded successfully

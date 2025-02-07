@@ -52,6 +52,10 @@ pub struct App {
     pub missing_cards: Option<Vec<CollectionCard>>,
     pub missing_scroll: usize,
     pub missing_scroll_state: ScrollbarState,
+    pub collection_scroll: usize,
+    pub collection_scroll_state: ScrollbarState,
+    pub decklist_scroll: usize,
+    pub decklist_scroll_state: ScrollbarState,
 }
 
 impl Default for App {
@@ -84,6 +88,10 @@ impl Default for App {
             missing_cards: None,
             missing_scroll: 0,
             missing_scroll_state: ScrollbarState::default(),
+            collection_scroll: 0,
+            collection_scroll_state: ScrollbarState::default(),
+            decklist_scroll: 0,
+            decklist_scroll_state: ScrollbarState::default(),
         }
     }
 }
@@ -126,10 +134,10 @@ impl App {
             }
             _ => {}
         };
-        if self.active_tab == MenuTabs::Collection {
+        if self.active_tab == MenuTabs::Collection && self.collection.is_none() {
             explorer.handle(&event)?;
         }
-        if self.active_tab == MenuTabs::Deck {
+        if self.active_tab == MenuTabs::Deck && self.decklist.is_none() {
             explorer2.handle(&event)?;
         }
         Ok(())
@@ -152,6 +160,7 @@ impl App {
             KeyCode::Enter => enter_press(self),
             KeyCode::Up => up_press(self),
             KeyCode::Down => down_press(self),
+            KeyCode::Esc => esc_press(self),
             _ => {}
         }
     }
@@ -240,16 +249,15 @@ fn s_press(app: &mut App) {
     match app.active_tab {
         MenuTabs::Collection => {
             if app.collection_file.is_some() {
-                app.debug_string += "Collection file is some.\n";
                 let path_str = app.collection_file.as_ref().unwrap().path().to_str();
                 if path_str.is_some() {
-                    app.debug_string += "path_str is some\n";
                     match read_moxfield_collection(path_str.unwrap()) {
                         Ok(collection) => {
                             app.debug_string += "read csv successfully\n\n";
                             app.collection = Some(collection);
                             app.collection_status =
                                 format!("Collection loaded successfully: {}", path_str.unwrap());
+                            app.collection_exist = true;
                             if app.collection.is_some() && app.decklist.is_some() {
                                 app.missing_cards = find_missing_cards(
                                     app.collection.clone().unwrap(),
@@ -264,10 +272,8 @@ fn s_press(app: &mut App) {
                     }
                 } else {
                     app.collection_status = "Encountered error with file path.".to_string();
-                    app.debug_string += "path_str is none\n"
                 }
             } else {
-                app.debug_string += "Collection file is none.\n";
             }
         }
         MenuTabs::Deck => {
@@ -299,6 +305,19 @@ fn s_press(app: &mut App) {
 
 fn up_press(app: &mut App) {
     match app.active_tab {
+        MenuTabs::Collection => {
+            if app.collection_scroll > 0 {
+                app.collection_scroll -= 1;
+                app.collection_scroll_state =
+                    app.collection_scroll_state.position(app.collection_scroll);
+            }
+        }
+        MenuTabs::Deck => {
+            if app.decklist_scroll > 0 {
+                app.decklist_scroll -= 1;
+                app.decklist_scroll_state = app.decklist_scroll_state.position(app.decklist_scroll);
+            }
+        }
         MenuTabs::Missing => {
             if app.missing_scroll > 0 {
                 app.missing_scroll -= 1;
@@ -311,6 +330,22 @@ fn up_press(app: &mut App) {
 
 fn down_press(app: &mut App) {
     match app.active_tab {
+        MenuTabs::Collection => {
+            if app.collection.is_some()
+                && app.collection_scroll < app.collection.as_ref().unwrap().len()
+            {
+                app.collection_scroll += 1;
+                app.collection_scroll_state =
+                    app.collection_scroll_state.position(app.collection_scroll);
+            }
+        }
+        MenuTabs::Deck => {
+            if app.decklist.is_some() && app.decklist_scroll < app.decklist.as_ref().unwrap().len()
+            {
+                app.decklist_scroll += 1;
+                app.decklist_scroll_state = app.decklist_scroll_state.position(app.decklist_scroll);
+            }
+        }
         MenuTabs::Missing => {
             if app.missing_cards.is_some()
                 && app.missing_scroll < app.missing_cards.as_ref().unwrap().len()
@@ -318,6 +353,19 @@ fn down_press(app: &mut App) {
                 app.missing_scroll += 1;
                 app.missing_scroll_state = app.missing_scroll_state.position(app.missing_scroll);
             }
+        }
+        _ => {}
+    }
+}
+
+fn esc_press(app: &mut App) {
+    match app.active_tab {
+        MenuTabs::Collection => {
+            app.collection = None;
+            app.collection_exist = false;
+        }
+        MenuTabs::Deck => {
+            app.decklist = None;
         }
         _ => {}
     }

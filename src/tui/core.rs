@@ -9,10 +9,10 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     prelude::{CrosstermBackend, Widget},
     style::{Style, Stylize},
-    symbols::border,
+    symbols::{border, scrollbar},
     text::{Line, Text},
     widgets::{
         block::{Position, Title},
@@ -143,7 +143,9 @@ pub fn ui(
                 "<Q>".yellow().bold(),
                 " Quit ".into(),
                 "<S>".yellow().bold(),
-                " Load/reset file ".into(),
+                " Load file ".into(),
+                "<Esc>".yellow().bold(),
+                " Reset file ".into(),
                 "<Up/Down>".yellow().bold(),
                 " Navigate ".into(),
                 "<Left/Backspace>".yellow().bold(),
@@ -158,7 +160,9 @@ pub fn ui(
                 "<Q>".yellow().bold(),
                 " Quit ".into(),
                 "<S>".yellow().bold(),
-                " Load/reset file ".into(),
+                " Load file ".into(),
+                "<Esc>".yellow().bold(),
+                " Reset file ".into(),
                 "<Up/Down>".yellow().bold(),
                 " Navigate ".into(),
                 "<Left/Backspace>".yellow().bold(),
@@ -267,7 +271,28 @@ fn draw_collection_main(
     let file_paragraph = Paragraph::new(app.collection_status.clone()).wrap(Wrap { trim: true });
     frame.render_widget(main_block, chunk);
     frame.render_widget(file_paragraph, sections[0]);
-    frame.render_widget(&explorer.widget(), sections[1]);
+    if app.collection.is_some() {
+        let mut lines: Vec<Line> = Vec::new();
+        for card in app.collection.as_ref().unwrap() {
+            lines.push(Line::from(format!("{}", card)));
+        }
+        app.collection_scroll_state = app.collection_scroll_state.content_length(lines.len());
+        let collection_paragraph = Paragraph::new(lines[app.collection_scroll..].to_vec());
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("^"))
+            .end_symbol(Some("v"));
+        frame.render_widget(collection_paragraph, sections[1]);
+        frame.render_stateful_widget(
+            scrollbar,
+            sections[1].inner(Margin {
+                vertical: 0,
+                horizontal: 1,
+            }),
+            &mut app.collection_scroll_state,
+        );
+    } else {
+        frame.render_widget(&explorer.widget(), sections[1]);
+    }
     // TODO: set default file path to Documents or something?
     let file = explorer.current();
     app.collection_file_name = Some(file.name().to_string());
@@ -298,7 +323,28 @@ fn draw_decklist_main(
     let file_paragraph = Paragraph::new(app.decklist_status.clone()).wrap(Wrap { trim: true });
     frame.render_widget(main_block, chunk);
     frame.render_widget(file_paragraph, sections[0]);
-    frame.render_widget(&explorer.widget(), sections[1]);
+    if app.decklist.is_some() {
+        let mut lines: Vec<Line> = Vec::new();
+        for card in app.decklist.as_ref().unwrap() {
+            lines.push(Line::from(format!("{}", card)));
+        }
+        app.decklist_scroll_state = app.collection_scroll_state.content_length(lines.len());
+        let decklist_paragraph = Paragraph::new(lines[app.decklist_scroll..].to_vec());
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("^"))
+            .end_symbol(Some("v"));
+        frame.render_widget(decklist_paragraph, sections[1]);
+        frame.render_stateful_widget(
+            scrollbar,
+            sections[1].inner(Margin {
+                horizontal: 1,
+                vertical: 0,
+            }),
+            &mut app.decklist_scroll_state,
+        );
+    } else {
+        frame.render_widget(&explorer.widget(), sections[1]);
+    }
     // TODO: set default file path to Documents or something?
     let file = explorer.current();
     app.decklist_file_name = Some(file.name().to_string());

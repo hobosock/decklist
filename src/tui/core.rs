@@ -1,9 +1,5 @@
-use std::{
-    io::{self, stdout, Stdout},
-    thread,
-};
+use std::io::{self, stdout, Stdout};
 
-use async_std::task;
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -12,7 +8,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     prelude::{CrosstermBackend, Widget},
     style::{Style, Stylize},
-    symbols::{border, scrollbar},
+    symbols::border,
     text::{Line, Text},
     widgets::{
         block::{Position, Title},
@@ -22,7 +18,7 @@ use ratatui::{
 };
 use ratatui_explorer::FileExplorer;
 
-use crate::{app::App, startup::startup_checks};
+use crate::app::App;
 
 /// a type alias for terminal type used
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
@@ -61,33 +57,6 @@ pub fn ui(
     explorer: &mut FileExplorer,
     explorer2: &mut FileExplorer,
 ) {
-    // start new thread to run start up processes
-    if !app.startup {
-        let startup_channel = app.startup_channel.0.clone();
-        thread::spawn(move || {
-            let startup_results = task::block_on(startup_checks());
-            match startup_channel.send(startup_results) {
-                Ok(()) => {}
-                Err(_) => {}
-            }
-        });
-        match app.startup_channel.1.try_recv() {
-            Ok(startup_checks) => {
-                // TODO: just add a StartupChecks struct to app struct, pass in one line
-                app.startup = true;
-                app.config_exist = startup_checks.config_exists;
-                app.database_exist = startup_checks.database_exists;
-                app.collection_exist = startup_checks.collection_exists;
-                app.directory_exist = startup_checks.directory_exists;
-                app.data_directory_exist = startup_checks.data_directory_exists;
-                app.database_status = startup_checks.database_status;
-                app.directory_status = startup_checks.directory_status;
-                app.config_status = startup_checks.config_status;
-                app.collection_status = startup_checks.collection_status;
-            }
-            Err(_) => {}
-        }
-    }
     // split area into 3 chunks (tabs/main/keys)
     let chunks = Layout::default()
         .direction(Direction::Vertical)

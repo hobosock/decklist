@@ -1,4 +1,6 @@
-use std::io;
+use crate::startup::startup_checks;
+use async_std::task;
+use std::{io, thread, time::Duration};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{widgets::ScrollbarState, Frame};
@@ -56,6 +58,7 @@ pub struct App {
     pub collection_scroll_state: ScrollbarState,
     pub decklist_scroll: usize,
     pub decklist_scroll_state: ScrollbarState,
+    pub redraw: bool,
 }
 
 impl Default for App {
@@ -92,6 +95,7 @@ impl Default for App {
             collection_scroll_state: ScrollbarState::default(),
             decklist_scroll: 0,
             decklist_scroll_state: ScrollbarState::default(),
+            redraw: true,
         }
     }
 }
@@ -104,8 +108,41 @@ impl App {
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
     ) -> io::Result<()> {
+        // start new thread to run start up processes
+        if !self.startup {
+            let startup_channel = self.startup_channel.0.clone();
+            thread::spawn(move || {
+                let startup_results = task::block_on(startup_checks());
+                match startup_channel.send(startup_results) {
+                    Ok(()) => {}
+                    Err(_) => {}
+                }
+            });
+        }
+        // main loop
         while !self.exit {
-            terminal.draw(|frame| self.render_frame(frame, explorer, explorer2))?;
+            // check for startup checks to resolve and update app status
+            match self.startup_channel.1.try_recv() {
+                Ok(startup_checks) => {
+                    // TODO: just add a StartupChecks struct to self struct, pass in one line
+                    self.startup = true;
+                    self.config_exist = startup_checks.config_exists;
+                    self.database_exist = startup_checks.database_exists;
+                    self.collection_exist = startup_checks.collection_exists;
+                    self.directory_exist = startup_checks.directory_exists;
+                    self.data_directory_exist = startup_checks.data_directory_exists;
+                    self.database_status = startup_checks.database_status;
+                    self.directory_status = startup_checks.directory_status;
+                    self.config_status = startup_checks.config_status;
+                    self.collection_status = startup_checks.collection_status;
+                    self.redraw = true;
+                }
+                Err(_) => {}
+            }
+            if self.redraw {
+                terminal.draw(|frame| self.render_frame(frame, explorer, explorer2))?;
+                self.redraw = false;
+            }
             self.handle_events(explorer, explorer2)?;
         }
         Ok(())
@@ -127,18 +164,21 @@ impl App {
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
     ) -> io::Result<()> {
-        let event = event::read()?;
-        match event {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event);
+        if event::poll(Duration::from_millis(100))? {
+            let event = event::read()?;
+            self.redraw = true;
+            match event {
+                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                    self.handle_key_event(key_event);
+                }
+                _ => {}
+            };
+            if self.active_tab == MenuTabs::Collection && self.collection.is_none() {
+                explorer.handle(&event)?;
             }
-            _ => {}
-        };
-        if self.active_tab == MenuTabs::Collection && self.collection.is_none() {
-            explorer.handle(&event)?;
-        }
-        if self.active_tab == MenuTabs::Deck && self.decklist.is_none() {
-            explorer2.handle(&event)?;
+            if self.active_tab == MenuTabs::Deck && self.decklist.is_none() {
+                explorer2.handle(&event)?;
+            }
         }
         Ok(())
     }

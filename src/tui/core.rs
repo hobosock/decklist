@@ -169,6 +169,16 @@ pub fn ui(
             draw_decklist_main(app, frame, chunks[1], main_block, explorer2);
         }
         MenuTabs::Missing => {
+            instructions_text = Text::from(vec![Line::from(vec![
+                "<Q>".yellow().bold(),
+                " Quit ".into(),
+                "<C>".yellow().bold(),
+                " Copy to clipboard ".into(),
+                "<S>".yellow().bold(),
+                " Save to file ".into(),
+                "<Up/Down>".yellow().bold(),
+                " Navigate ".into(),
+            ])]);
             draw_missing_main(app, frame, chunks[1], main_block);
         }
         MenuTabs::Debug => {

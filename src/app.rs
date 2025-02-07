@@ -214,6 +214,24 @@ fn c_press(app: &mut App) {
                 }
             }
         }
+        MenuTabs::Missing => {
+            if app.missing_cards.is_some() {
+                let mut clipboard_string = String::new();
+                for card in app.missing_cards.as_ref().unwrap().iter() {
+                    clipboard_string += &format!("{}\n", card);
+                }
+                match cli_clipboard::set_contents(clipboard_string) {
+                    Ok(()) => {
+                        app.debug_string += "Missing cards copied to clipboard successfully.\n";
+                        match cli_clipboard::get_contents() {
+                            Ok(contents) => app.debug_string += &(contents + "\n"),
+                            Err(e) => app.debug_string += &(e.to_string() + "\n"),
+                        }
+                    }
+                    Err(e) => app.debug_string += &e.to_string(),
+                }
+            }
+        }
         _ => {}
     }
 }

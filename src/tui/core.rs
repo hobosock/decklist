@@ -9,14 +9,14 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    prelude::CrosstermBackend,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    prelude::{CrosstermBackend, Widget},
     style::{Style, Stylize},
     symbols::border,
     text::{Line, Text},
     widgets::{
         block::{Position, Title},
-        Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Tabs, Wrap,
+        Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, Tabs, Wrap,
     },
     Frame, Terminal,
 };
@@ -298,25 +298,19 @@ fn draw_decklist_main(
 /// draws the main block of the missing cards tab
 fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: Block) {
     if app.missing_cards.is_some() {
+        let inner_area = main_block.inner(chunk);
         let mut lines: Vec<Line> = Vec::new();
         for card in app.missing_cards.clone().unwrap() {
             lines.push(Line::from(format!("{}", card)));
         }
-        let _ = app.missing_scroll_state.content_length(lines.len());
-        let missing_paragraph = Paragraph::new(lines)
-            .scroll((app.missing_scroll as u16, 0))
-            .block(main_block);
+        app.missing_scroll_state = app.missing_scroll_state.content_length(lines.len());
+        let missing_paragraph = Paragraph::new(lines[app.missing_scroll..].to_vec());
+        //.scroll((app.missing_scroll as u16, 0))
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("^"))
             .end_symbol(Some("v"));
-        frame.render_widget(missing_paragraph, chunk);
-        frame.render_stateful_widget(
-            scrollbar,
-            chunk.inner(Margin {
-                vertical: 1,
-                horizontal: 0,
-            }),
-            &mut app.missing_scroll_state,
-        );
+        main_block.render(chunk, frame.buffer_mut());
+        frame.render_widget(missing_paragraph, inner_area);
+        frame.render_stateful_widget(scrollbar, inner_area, &mut app.missing_scroll_state);
     }
 }

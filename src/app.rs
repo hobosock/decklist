@@ -282,8 +282,10 @@ fn s_press(app: &mut App) {
 fn up_press(app: &mut App) {
     match app.active_tab {
         MenuTabs::Missing => {
-            let _ = app.missing_scroll.saturating_add(1);
-            app.missing_scroll_state = app.missing_scroll_state.position(app.missing_scroll);
+            if app.missing_scroll > 0 {
+                app.missing_scroll -= 1;
+                app.missing_scroll_state = app.missing_scroll_state.position(app.missing_scroll);
+            }
         }
         _ => {}
     }
@@ -292,8 +294,12 @@ fn up_press(app: &mut App) {
 fn down_press(app: &mut App) {
     match app.active_tab {
         MenuTabs::Missing => {
-            let _ = app.missing_scroll.saturating_sub(1);
-            app.missing_scroll_state = app.missing_scroll_state.position(app.missing_scroll);
+            if app.missing_cards.is_some()
+                && app.missing_scroll < app.missing_cards.as_ref().unwrap().len()
+            {
+                app.missing_scroll += 1;
+                app.missing_scroll_state = app.missing_scroll_state.position(app.missing_scroll);
+            }
         }
         _ => {}
     }

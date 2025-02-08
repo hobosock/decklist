@@ -77,7 +77,7 @@ fn squash_collection(collection_in: Vec<CollectionCard>) -> Vec<CollectionCard> 
 /// reads in a decklist file in this format:
 /// ## Card Name
 /// safely skips over Sideboard label, blank lines, etc.
-pub fn read_decklist(file_name: &str) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
+pub fn read_decklist(file_name: String) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
     let mut decklist: Vec<CollectionCard> = Vec::new();
     let file_str = fs::read_to_string(file_name)?;
     let rows: Vec<&str> = file_str.split('\n').collect();

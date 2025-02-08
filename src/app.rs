@@ -41,6 +41,20 @@ impl Default for CollectionMessage {
     }
 }
 
+pub struct DecklistMessage {
+    pub decklist: Option<Vec<CollectionCard>>,
+    pub status: String,
+}
+
+impl Default for DecklistMessage {
+    fn default() -> Self {
+        DecklistMessage {
+            decklist: None,
+            status: String::new(),
+        }
+    }
+}
+
 pub struct App {
     exit: bool,
     pub startup: bool,
@@ -82,8 +96,8 @@ pub struct App {
         std::sync::mpsc::Receiver<CollectionMessage>,
     ),
     pub decklist_channel: (
-        std::sync::mpsc::Sender<Vec<CollectionCard>>,
-        std::sync::mpsc::Receiver<Vec<CollectionCard>>,
+        std::sync::mpsc::Sender<DecklistMessage>,
+        std::sync::mpsc::Receiver<DecklistMessage>,
     ),
     pub loading_collection: bool,
     pub loading_decklist: bool,
@@ -179,6 +193,23 @@ impl App {
                         self.collection_status = msg.status;
                         self.collection_exist = msg.exist;
                         self.loading_collection = false;
+                        if self.collection.is_some() && self.decklist.is_some() {
+                            self.missing_cards = find_missing_cards(
+                                self.collection.clone().unwrap(),
+                                self.decklist.clone().unwrap(),
+                            );
+                        }
+                        self.redraw = true;
+                    }
+                    Err(_) => {}
+                }
+            }
+            if self.loading_decklist {
+                match self.decklist_channel.1.try_recv() {
+                    Ok(msg) => {
+                        self.decklist = msg.decklist;
+                        self.decklist_status = msg.status;
+                        self.loading_decklist = false;
                         if self.collection.is_some() && self.decklist.is_some() {
                             self.missing_cards = find_missing_cards(
                                 self.collection.clone().unwrap(),
@@ -377,22 +408,27 @@ fn s_press(app: &mut App) {
             if app.decklist_file.is_some() {
                 let path_str = app.decklist_file.as_ref().unwrap().path().to_str();
                 if path_str.is_some() {
-                    match read_decklist(path_str.unwrap()) {
-                        Ok(decklist) => {
-                            app.decklist = Some(decklist);
-                            app.decklist_status =
-                                format!("Decklist loaded successfully: {}", path_str.unwrap());
-                            if app.collection.is_some() && app.decklist.is_some() {
-                                app.missing_cards = find_missing_cards(
-                                    app.collection.clone().unwrap(),
-                                    app.decklist.clone().unwrap(),
-                                );
+                    let path_string = path_str.unwrap().to_string();
+                    let decklist_channel = app.decklist_channel.0.clone();
+                    app.loading_decklist = true;
+                    thread::spawn(move || {
+                        let read_result = read_decklist(path_string.clone());
+                        let mut message = DecklistMessage::default();
+                        match read_result {
+                            Ok(decklist) => {
+                                message.decklist = Some(decklist);
+                                message.status =
+                                    format!("Decklist loaded successfully: {}", path_string);
+                            }
+                            Err(e) => {
+                                message.status = e.to_string();
                             }
                         }
-                        Err(e) => {
-                            app.decklist_status = e.to_string();
+                        match decklist_channel.send(message) {
+                            Ok(()) => {}
+                            Err(_) => {}
                         }
-                    }
+                    });
                 }
             }
         }

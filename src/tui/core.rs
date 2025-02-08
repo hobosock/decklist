@@ -18,7 +18,7 @@ use ratatui::{
 };
 use ratatui_explorer::FileExplorer;
 
-use crate::app::App;
+use crate::{app::App, collection::check_missing};
 
 /// a type alias for terminal type used
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
@@ -326,7 +326,12 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         let inner_area = main_block.inner(chunk);
         let mut lines: Vec<Line> = Vec::new();
         for card in app.missing_cards.clone().unwrap() {
-            lines.push(Line::from(format!("{}", card)));
+            let missing_str = if app.card_database.is_some() {
+                check_missing(&app.card_database.as_ref().unwrap(), &card)
+            } else {
+                "".to_string()
+            };
+            lines.push(Line::from(format!("{}{}", card, missing_str)));
         }
         app.missing_scroll_state = app.missing_scroll_state.content_length(lines.len());
         let missing_paragraph = Paragraph::new(lines[app.missing_scroll..].to_vec());

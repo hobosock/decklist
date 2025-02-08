@@ -74,7 +74,7 @@ pub struct App {
         std::sync::mpsc::Sender<StartupChecks>,
         std::sync::mpsc::Receiver<StartupChecks>,
     ),
-    pub card_database: Vec<ScryfallCard>,
+    pub card_database: Option<Vec<ScryfallCard>>,
     pub collection: Option<Vec<CollectionCard>>,
     pub collection_file_name: Option<String>,
     pub collection_file: Option<File>,
@@ -121,7 +121,7 @@ impl Default for App {
             config: DecklistConfig::default(),
             active_tab: MenuTabs::default(),
             startup_channel: std::sync::mpsc::channel(),
-            card_database: Vec::new(),
+            card_database: None,
             collection: None,
             collection_file_name: None,
             collection_file: None,
@@ -178,6 +178,7 @@ impl App {
                     self.directory_exist = startup_checks.directory_exists;
                     self.data_directory_exist = startup_checks.data_directory_exists;
                     self.database_status = startup_checks.database_status;
+                    self.card_database = startup_checks.database_cards;
                     self.directory_status = startup_checks.directory_status;
                     self.config_status = startup_checks.config_status;
                     self.collection_status = startup_checks.collection_status;
@@ -351,6 +352,7 @@ fn c_press(app: &mut App) {
                 for card in app.missing_cards.as_ref().unwrap().iter() {
                     clipboard_string += &format!("{}\n", card);
                 }
+                app.debug_string += &clipboard_string;
                 match cli_clipboard::set_contents(clipboard_string) {
                     Ok(()) => {
                         app.debug_string += "Missing cards copied to clipboard successfully.\n";

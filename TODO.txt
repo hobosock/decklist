@@ -1,7 +1,4 @@
 export missing cards to clipboard and text file in the correct format
-make event handling a separate thread
-render terminal a few times a second
-make file loading and writing asynchronous
 check missing cards against database to make sure they are valid cards
 store collection file location in config file
 download new database file if current one is out of date

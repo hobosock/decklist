@@ -24,7 +24,9 @@ impl Display for CollectionCard {
 }
 
 /// reads in Moxfield collection CSV and turns it into a Vec<CollectionCard>
-pub fn read_moxfield_collection(file_name: &str) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
+pub async fn read_moxfield_collection(
+    file_name: String,
+) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
     let file = File::open(file_name)?;
     let mut reader = ReaderBuilder::new()
         .has_headers(true)

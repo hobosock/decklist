@@ -23,6 +23,24 @@ pub enum SupportedOS {
     Unsupported,
 }
 
+pub struct CollectionMessage {
+    pub debug: String,
+    pub collection: Option<Vec<CollectionCard>>,
+    pub status: String,
+    pub exist: bool,
+}
+
+impl Default for CollectionMessage {
+    fn default() -> Self {
+        CollectionMessage {
+            debug: String::new(),
+            collection: None,
+            status: String::new(),
+            exist: false,
+        }
+    }
+}
+
 pub struct App {
     exit: bool,
     pub startup: bool,
@@ -59,6 +77,16 @@ pub struct App {
     pub decklist_scroll: usize,
     pub decklist_scroll_state: ScrollbarState,
     pub redraw: bool,
+    pub collection_channel: (
+        std::sync::mpsc::Sender<CollectionMessage>,
+        std::sync::mpsc::Receiver<CollectionMessage>,
+    ),
+    pub decklist_channel: (
+        std::sync::mpsc::Sender<Vec<CollectionCard>>,
+        std::sync::mpsc::Receiver<Vec<CollectionCard>>,
+    ),
+    pub loading_collection: bool,
+    pub loading_decklist: bool,
 }
 
 impl Default for App {
@@ -96,6 +124,10 @@ impl Default for App {
             decklist_scroll: 0,
             decklist_scroll_state: ScrollbarState::default(),
             redraw: true,
+            collection_channel: std::sync::mpsc::channel(),
+            decklist_channel: std::sync::mpsc::channel(),
+            loading_collection: false,
+            loading_decklist: false,
         }
     }
 }
@@ -138,6 +170,25 @@ impl App {
                     self.redraw = true;
                 }
                 Err(_) => {}
+            }
+            if self.loading_collection {
+                match self.collection_channel.1.try_recv() {
+                    Ok(msg) => {
+                        self.debug_string += &msg.debug;
+                        self.collection = msg.collection;
+                        self.collection_status = msg.status;
+                        self.collection_exist = msg.exist;
+                        self.loading_collection = false;
+                        if self.collection.is_some() && self.decklist.is_some() {
+                            self.missing_cards = find_missing_cards(
+                                self.collection.clone().unwrap(),
+                                self.decklist.clone().unwrap(),
+                            );
+                        }
+                        self.redraw = true;
+                    }
+                    Err(_) => {}
+                }
             }
             if self.redraw {
                 terminal.draw(|frame| self.render_frame(frame, explorer, explorer2))?;
@@ -291,25 +342,31 @@ fn s_press(app: &mut App) {
             if app.collection_file.is_some() {
                 let path_str = app.collection_file.as_ref().unwrap().path().to_str();
                 if path_str.is_some() {
-                    match read_moxfield_collection(path_str.unwrap()) {
-                        Ok(collection) => {
-                            app.debug_string += "read csv successfully\n\n";
-                            app.collection = Some(collection);
-                            app.collection_status =
-                                format!("Collection loaded successfully: {}", path_str.unwrap());
-                            app.collection_exist = true;
-                            if app.collection.is_some() && app.decklist.is_some() {
-                                app.missing_cards = find_missing_cards(
-                                    app.collection.clone().unwrap(),
-                                    app.decklist.clone().unwrap(),
-                                );
+                    let path_string = path_str.unwrap().to_string();
+                    let collection_channel = app.collection_channel.0.clone();
+                    app.loading_collection = true;
+                    thread::spawn(move || {
+                        let read_result =
+                            task::block_on(read_moxfield_collection(path_string.clone()));
+                        let mut message = CollectionMessage::default();
+                        match read_result {
+                            Ok(collection) => {
+                                message.debug += "read csv successfully\n\n";
+                                message.collection = Some(collection);
+                                message.status =
+                                    format!("Collection loaded successfully: {}", path_string);
+                                message.exist = true;
+                            }
+                            Err(e) => {
+                                message.status = e.to_string();
+                                message.debug += &format!("Error reading CSV: {}", e);
                             }
                         }
-                        Err(e) => {
-                            app.collection_status = e.to_string();
-                            app.debug_string += &format!("Error reading CSV: {}", e);
+                        match collection_channel.send(message) {
+                            Ok(()) => {}
+                            Err(_) => {}
                         }
-                    }
+                    });
                 } else {
                     app.collection_status = "Encountered error with file path.".to_string();
                 }

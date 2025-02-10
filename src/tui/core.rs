@@ -18,7 +18,7 @@ use ratatui::{
 };
 use ratatui_explorer::FileExplorer;
 
-use crate::{app::App, collection::check_missing};
+use crate::app::App;
 
 /// a type alias for terminal type used
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
@@ -324,6 +324,7 @@ fn draw_decklist_main(
 fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: Block) {
     if app.missing_cards.is_some() {
         let inner_area = main_block.inner(chunk);
+        /* moving for speed
         let mut lines: Vec<Line> = Vec::new();
         for card in app.missing_cards.clone().unwrap() {
             let missing_str = if app.card_database.is_some() {
@@ -333,8 +334,11 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
             };
             lines.push(Line::from(format!("{}{}", card, missing_str)));
         }
-        app.missing_scroll_state = app.missing_scroll_state.content_length(lines.len());
-        let missing_paragraph = Paragraph::new(lines[app.missing_scroll..].to_vec());
+        */
+        app.missing_scroll_state = app
+            .missing_scroll_state
+            .content_length(app.missing_lines.len());
+        let missing_paragraph = Paragraph::new(app.missing_lines[app.missing_scroll..].to_vec());
         //.scroll((app.missing_scroll as u16, 0))
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("^"))

@@ -1,9 +1,9 @@
-use crate::startup::startup_checks;
+use crate::{collection::check_missing, startup::startup_checks};
 use async_std::task;
 use std::{io, thread, time::Duration};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use ratatui::{widgets::ScrollbarState, Frame};
+use ratatui::{text::Line, widgets::ScrollbarState, Frame};
 use ratatui_explorer::{File, FileExplorer};
 
 use crate::{
@@ -55,7 +55,7 @@ impl Default for DecklistMessage {
     }
 }
 
-pub struct App {
+pub struct App<'a> {
     exit: bool,
     pub startup: bool,
     pub os: SupportedOS,
@@ -101,9 +101,10 @@ pub struct App {
     ),
     pub loading_collection: bool,
     pub loading_decklist: bool,
+    pub missing_lines: Vec<Line<'a>>,
 }
 
-impl Default for App {
+impl Default for App<'_> {
     fn default() -> Self {
         Self {
             exit: false,
@@ -142,11 +143,12 @@ impl Default for App {
             decklist_channel: std::sync::mpsc::channel(),
             loading_collection: false,
             loading_decklist: false,
+            missing_lines: Vec::new(),
         }
     }
 }
 
-impl App {
+impl App<'_> {
     /// runs the application's main loop until the user quits
     pub fn run(
         &mut self,
@@ -199,6 +201,16 @@ impl App {
                                 self.collection.clone().unwrap(),
                                 self.decklist.clone().unwrap(),
                             );
+                            self.missing_lines = Vec::new();
+                            for card in self.missing_cards.clone().unwrap() {
+                                let missing_str = if self.card_database.is_some() {
+                                    check_missing(&self.card_database.as_ref().unwrap(), &card)
+                                } else {
+                                    "".to_string()
+                                };
+                                self.missing_lines
+                                    .push(Line::from(format!("{}{}", card, missing_str)));
+                            }
                         }
                         self.redraw = true;
                     }
@@ -216,6 +228,16 @@ impl App {
                                 self.collection.clone().unwrap(),
                                 self.decklist.clone().unwrap(),
                             );
+                            self.missing_lines = Vec::new();
+                            for card in self.missing_cards.clone().unwrap() {
+                                let missing_str = if self.card_database.is_some() {
+                                    check_missing(&self.card_database.as_ref().unwrap(), &card)
+                                } else {
+                                    "".to_string()
+                                };
+                                self.missing_lines
+                                    .push(Line::from(format!("{}{}", card, missing_str)));
+                            }
                         }
                         self.redraw = true;
                     }

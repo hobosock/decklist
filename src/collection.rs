@@ -5,7 +5,10 @@ use std::{
 };
 
 use csv::ReaderBuilder;
+use diacritics::remove_diacritics;
 use serde::Deserialize;
+
+use crate::database::scryfall::ScryfallCard;
 
 /// simple card format for collections and decklists
 /// just the card name and the quantity
@@ -24,7 +27,9 @@ impl Display for CollectionCard {
 }
 
 /// reads in Moxfield collection CSV and turns it into a Vec<CollectionCard>
-pub fn read_moxfield_collection(file_name: &str) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
+pub async fn read_moxfield_collection(
+    file_name: String,
+) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
     let file = File::open(file_name)?;
     let mut reader = ReaderBuilder::new()
         .has_headers(true)
@@ -75,7 +80,7 @@ fn squash_collection(collection_in: Vec<CollectionCard>) -> Vec<CollectionCard> 
 /// reads in a decklist file in this format:
 /// ## Card Name
 /// safely skips over Sideboard label, blank lines, etc.
-pub fn read_decklist(file_name: &str) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
+pub fn read_decklist(file_name: String) -> Result<Vec<CollectionCard>, Box<dyn Error>> {
     let mut decklist: Vec<CollectionCard> = Vec::new();
     let file_str = fs::read_to_string(file_name)?;
     let rows: Vec<&str> = file_str.split('\n').collect();
@@ -117,7 +122,7 @@ pub fn find_missing_cards(
                     missing_card.quantity -= item.quantity;
                     missing_cards.push(missing_card);
                 }
-                continue;
+                break;
             }
         }
         if !found {
@@ -128,5 +133,20 @@ pub fn find_missing_cards(
         return None;
     } else {
         return Some(missing_cards);
+    }
+}
+
+pub fn check_missing(database: &Vec<ScryfallCard>, missing_card: &CollectionCard) -> String {
+    let mut found = false;
+    for card in database.iter() {
+        if remove_diacritics(&missing_card.name) == remove_diacritics(&card.name) {
+            found = true;
+            break;
+        }
+    }
+    if found {
+        "".to_string()
+    } else {
+        " <------ This card was not found in database.  Check spelling?".to_string()
     }
 }

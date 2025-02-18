@@ -1,5 +1,11 @@
-use crate::{collection::check_missing, startup::startup_checks};
+use crate::{
+    collection::check_missing,
+    startup::{
+        config_check, database_check, directory_check, ConfigCheck, DatabaseCheck, DirectoryCheck,
+    },
+};
 use async_std::task;
+use directories_next::ProjectDirs;
 use std::{io, thread, time::Duration};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
@@ -10,7 +16,7 @@ use crate::{
     collection::{find_missing_cards, read_decklist, read_moxfield_collection, CollectionCard},
     config::DecklistConfig,
     database::scryfall::ScryfallCard,
-    startup::{create_config, create_data_directory, create_directory, StartupChecks},
+    startup::{create_config, create_data_directory, create_directory},
     tui::core::{ui, MenuTabs, Tui},
 };
 
@@ -58,6 +64,10 @@ impl Default for DecklistMessage {
 pub struct App<'a> {
     exit: bool,
     pub startup: bool,
+    pub config_started: bool,
+    pub config_done: bool,
+    pub database_started: bool,
+    pub database_done: bool,
     pub os: SupportedOS,
     pub directory_exist: bool,
     pub data_directory_exist: bool,
@@ -70,9 +80,17 @@ pub struct App<'a> {
     pub collection_status: String,
     pub config: DecklistConfig,
     pub active_tab: MenuTabs,
-    pub startup_channel: (
-        std::sync::mpsc::Sender<StartupChecks>,
-        std::sync::mpsc::Receiver<StartupChecks>,
+    pub directory_channel: (
+        std::sync::mpsc::Sender<DirectoryCheck>,
+        std::sync::mpsc::Receiver<DirectoryCheck>,
+    ),
+    pub config_channel: (
+        std::sync::mpsc::Sender<ConfigCheck>,
+        std::sync::mpsc::Receiver<ConfigCheck>,
+    ),
+    pub database_channel: (
+        std::sync::mpsc::Sender<DatabaseCheck>,
+        std::sync::mpsc::Receiver<DatabaseCheck>,
     ),
     pub card_database: Option<Vec<ScryfallCard>>,
     pub collection: Option<Vec<CollectionCard>>,
@@ -109,6 +127,10 @@ impl Default for App<'_> {
         Self {
             exit: false,
             startup: false,
+            config_started: false,
+            config_done: false,
+            database_started: false,
+            database_done: false,
             os: SupportedOS::default(),
             directory_exist: false,
             data_directory_exist: false,
@@ -121,7 +143,9 @@ impl Default for App<'_> {
             collection_status: "Waiting on startup checks...".to_string(),
             config: DecklistConfig::default(),
             active_tab: MenuTabs::default(),
-            startup_channel: std::sync::mpsc::channel(),
+            directory_channel: std::sync::mpsc::channel(),
+            config_channel: std::sync::mpsc::channel(),
+            database_channel: std::sync::mpsc::channel(),
             card_database: None,
             collection: None,
             collection_file_name: None,
@@ -156,12 +180,12 @@ impl App<'_> {
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
     ) -> io::Result<()> {
-        // start new thread to run start up processes
+        // start new threads to run start up processes
         if !self.startup {
-            let startup_channel = self.startup_channel.0.clone();
+            let directory_channel = self.directory_channel.0.clone();
             thread::spawn(move || {
-                let startup_results = task::block_on(startup_checks());
-                match startup_channel.send(startup_results) {
+                let directory_results = task::block_on(directory_check());
+                match directory_channel.send(directory_results) {
                     Ok(()) => {}
                     Err(_) => {}
                 }
@@ -169,25 +193,71 @@ impl App<'_> {
         }
         // main loop
         while !self.exit {
-            // check for startup checks to resolve and update app status
-            match self.startup_channel.1.try_recv() {
-                Ok(startup_checks) => {
-                    // TODO: just add a StartupChecks struct to self struct, pass in one line
-                    self.startup = true;
-                    self.config_exist = startup_checks.config_exists;
-                    self.database_exist = startup_checks.database_exists;
-                    self.collection_exist = startup_checks.collection_exists;
-                    self.directory_exist = startup_checks.directory_exists;
-                    self.data_directory_exist = startup_checks.data_directory_exists;
-                    self.database_status = startup_checks.database_status;
-                    self.card_database = startup_checks.database_cards;
-                    self.directory_status = startup_checks.directory_status;
-                    self.config_status = startup_checks.config_status;
-                    self.collection_status = startup_checks.collection_status;
-                    self.redraw = true;
+            if !self.startup {
+                // check for startup checks to resolve and update app status
+                match self.directory_channel.1.try_recv() {
+                    Ok(directory_check) => {
+                        self.startup = true;
+                        self.directory_exist = directory_check.directory_exists;
+                        self.data_directory_exist = directory_check.data_directory_exists;
+                        self.directory_status = directory_check.directory_status;
+                        self.redraw = true;
+                    }
+                    Err(_) => {}
                 }
-                Err(_) => {}
             }
+            // spin up other startup processes once directories have been confirmed
+            if self.directory_exist && !self.config_started {
+                let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
+                let config_channel = self.config_channel.0.clone();
+                thread::spawn(move || {
+                    let config_results = task::block_on(config_check(project_dir));
+                    match config_channel.send(config_results) {
+                        Ok(()) => {}
+                        Err(_) => {}
+                    }
+                });
+                self.config_started = true;
+            }
+            if !self.config_done {
+                match self.config_channel.1.try_recv() {
+                    Ok(cc) => {
+                        self.config_done = true;
+                        self.config_exist = cc.config_exists;
+                        self.config_status = cc.config_status;
+                        self.redraw = true;
+                    }
+                    Err(_) => {}
+                }
+            }
+            if self.data_directory_exist && !self.database_started {
+                let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
+                let database_channel = self.database_channel.0.clone();
+                thread::spawn(move || {
+                    let database_results = task::block_on(database_check(project_dir));
+                    match database_channel.send(database_results) {
+                        Ok(()) => {}
+                        Err(_) => {}
+                    }
+                });
+                self.database_started = true;
+            }
+            if !self.database_done {
+                match self.database_channel.1.try_recv() {
+                    Ok(dc) => {
+                        self.database_done = true;
+                        self.database_exist = dc.database_exists;
+                        self.database_status = dc.database_status;
+                        self.card_database = dc.database_cards;
+                        self.collection_exist = false;
+                        self.collection_status =
+                            "Manually load in [COLLECTION] tab until feature is added.".to_string();
+                        self.redraw = true;
+                    }
+                    Err(_) => {}
+                }
+            }
+            // TODO: eventually have collection check separate
             if self.loading_collection {
                 match self.collection_channel.1.try_recv() {
                     Ok(msg) => {

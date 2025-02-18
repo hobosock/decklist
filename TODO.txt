@@ -3,3 +3,4 @@ store collection file location in config file
 download new database file if current one is out of date
 show error message on Deck tab if user tries to load an imcompatible file
 make misspelled cards check async
+make terminal background opaque

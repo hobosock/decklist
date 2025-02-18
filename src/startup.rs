@@ -11,6 +11,7 @@ use crate::{
     database::scryfall::{read_scryfall_database, ScryfallCard},
 };
 
+/*
 /// returns enum of detected OS
 /// useful for matching system specific file paths, config files, etc.
 pub fn get_os() -> SupportedOS {
@@ -23,6 +24,103 @@ pub fn get_os() -> SupportedOS {
         SupportedOS::Mac
     } else {
         SupportedOS::Unsupported
+    }
+}
+*/
+
+/// struct with information resulting from directory startup check
+pub struct DirectoryCheck {
+    pub directory_exists: bool,
+    pub data_directory_exists: bool,
+    pub directory_status: String,
+}
+
+/// checks for existence of program directories that store config file/database/etc.
+/// first step in startup checks
+pub async fn directory_check() -> DirectoryCheck {
+    let directory_exists = directory_exist();
+    let data_directory_exists = data_directory_exist();
+    let mut directory_status =
+        "Program directories does not exist.  Hit enter to create them now.".to_string();
+    if directory_exists {
+        let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
+        directory_status = format!(
+            "Directory found at {:?}",
+            project_dir.config_dir().to_path_buf()
+        );
+    }
+    DirectoryCheck {
+        directory_exists,
+        data_directory_exists,
+        directory_status,
+    }
+}
+
+/// struct with config check information
+pub struct ConfigCheck {
+    pub config_exists: bool,
+    pub config_status: String,
+    pub config: DecklistConfig,
+}
+
+/// checks for existence of config file, loads if one is found
+/// returns default options if no file is found or if an error occurs
+/// NOTE: check that directory exists first before calling this one
+pub async fn config_check(project_dir: ProjectDirs) -> ConfigCheck {
+    let mut config_exists = false;
+    let mut config = DecklistConfig::default();
+    let mut config_status = "No directory for config file.".to_string();
+    match config_exist(project_dir) {
+        Ok(c) => {
+            config = c;
+            config_status = "Config successfully loaded.".to_string();
+            config_exists = true;
+        }
+        Err(e) => {
+            config_status = format!(
+                "Failed to load config file: {}.  Press C to create.  Using default settings...",
+                e
+            );
+        }
+    }
+    ConfigCheck {
+        config_exists,
+        config_status,
+        config,
+    }
+}
+
+/// struct with database check information
+pub struct DatabaseCheck {
+    pub database_exists: bool,
+    pub database_status: String,
+    pub database_cards: Option<Vec<ScryfallCard>>,
+}
+
+/// checks for existence of database file, loads database if found
+/// NOTE: check that directory exists first before calling this one
+/// TODO: check for file age, etc.
+/// TODO: auto download file if out of date or not found
+pub async fn database_check(project_dir: ProjectDirs) -> DatabaseCheck {
+    let mut database_exists = false;
+    let mut database_status =
+        "No config file to indicate database location.  Load file manually in [DATABASE] tab."
+            .to_string();
+    let mut database_cards = None;
+    let mut data_path = project_dir.data_local_dir().as_os_str().to_os_string();
+    data_path.push("/short.json");
+    match read_scryfall_database(&data_path) {
+        Ok(cards) => {
+            database_exists = true;
+            database_status = "Loaded cards".to_string();
+            database_cards = Some(cards);
+        }
+        Err(e) => database_status = e.to_string(),
+    }
+    DatabaseCheck {
+        database_exists,
+        database_status,
+        database_cards,
     }
 }
 
@@ -42,10 +140,11 @@ pub struct StartupChecks {
     pub database_cards: Option<Vec<ScryfallCard>>,
 }
 
+/*
 /// checks for supported OS, then looks at OS appropriate file locations
 /// for things like config file/database/collection locations
 pub async fn startup_checks() -> StartupChecks {
-    let os = get_os();
+    //let os = get_os();
     let directory_exists = directory_exist();
     let data_directory_exists = data_directory_exist();
     let mut config_exists = false;
@@ -57,7 +156,7 @@ pub async fn startup_checks() -> StartupChecks {
         "No config file to indicate database location.  Load file manually in [DATABASE] tab."
             .to_string();
     let mut database_cards = None;
-    let mut collection_status =
+    let collection_status =
         "No config file to indicate collection location.  Load file manually in [COLLECTION] tab."
             .to_string();
     if directory_exists {
@@ -106,6 +205,7 @@ pub async fn startup_checks() -> StartupChecks {
         database_cards,
     }
 }
+*/
 
 /// checks for existence of decklist user directory
 fn directory_exist() -> bool {

@@ -1,6 +1,21 @@
-export missing cards to clipboard and text file in the correct format
+export missing cards to text file in the correct format
 store collection file location in config file
 download new database file if current one is out of date
-show error message on Deck tab if user tries to load an imcompatible file
+show error message on Deck tab if user tries to load an incompatible file
 make misspelled cards check async
 make terminal background opaque
+
+Scryfall database check:
+- download file, learn file name convention
+  - names have the format "oracle-cards-yyyymmddhhmmss.json"
+  - kind of guessing on the time thing but it doesn't matter
+- check for file fitting generic name in data directory
+  - std::fs::read_dir()
+  - .is_file()
+- if found, parse date from file name
+  - already done
+- get current date
+- compare dates
+- compare difference to database age limit from config
+- REST request from Scryfall if too old
+  - reqwest

@@ -124,6 +124,16 @@ pub async fn database_check(project_dir: ProjectDirs) -> DatabaseCheck {
     }
 }
 
+/// finds the latest Scryfall OracleCards database file in the program data directory
+/// returns the full file path as Some(String) if found
+/// returns None if no file exists
+fn find_scryfall_database(data_path: String) -> Option<String> {
+    let items = fs::read_dir(data_path)
+        .expect("Scryfall database directory should exist if calling find_scryfall_database().");
+    // NOTE: path should be right
+}
+
+/*
 /// structure containing the results of all the different startup checks
 /// to be passed back to main application thread and used to update main app struct
 pub struct StartupChecks {
@@ -139,6 +149,7 @@ pub struct StartupChecks {
     pub collection_status: String,
     pub database_cards: Option<Vec<ScryfallCard>>,
 }
+*/
 
 /*
 /// checks for supported OS, then looks at OS appropriate file locations

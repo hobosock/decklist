@@ -115,8 +115,8 @@ pub async fn database_check(project_dir: ProjectDirs, max_age: u64) -> DatabaseC
         Ok(s) => {
             if let Some((filename, date)) = find_scryfall_database(s) {
                 // TODO: date magic here to get file age
-                let current_time: DateTime<Local> = Local::now();
-                let formatted_time = current_time.format("%Y%m%d%H%M%S").to_string();
+                let current_time = DateTime::<Local> = Local::now();
+                let formatted_time = now.format("%Y%m%d%H%M%S").to_string();
                 data_path.push("/");
                 data_path.push(filename);
                 match read_scryfall_database(&data_path) {

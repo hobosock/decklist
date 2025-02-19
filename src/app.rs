@@ -4,6 +4,7 @@ use crate::{
         config_check, database_check, directory_check, ConfigCheck, DatabaseCheck, DirectoryCheck,
     },
 };
+use arboard::Clipboard;
 use async_std::task;
 use directories_next::ProjectDirs;
 use std::{io, thread, time::Duration};
@@ -120,6 +121,7 @@ pub struct App<'a> {
     pub loading_collection: bool,
     pub loading_decklist: bool,
     pub missing_lines: Vec<Line<'a>>,
+    pub clipboard: Result<Clipboard, arboard::Error>,
 }
 
 impl Default for App<'_> {
@@ -168,6 +170,7 @@ impl Default for App<'_> {
             loading_collection: false,
             loading_decklist: false,
             missing_lines: Vec::new(),
+            clipboard: Clipboard::new(),
         }
     }
 }
@@ -445,15 +448,20 @@ fn c_press(app: &mut App) {
                     clipboard_string += &format!("{}\n", card);
                 }
                 app.debug_string += &clipboard_string;
-                match cli_clipboard::set_contents(clipboard_string) {
-                    Ok(()) => {
-                        app.debug_string += "Missing cards copied to clipboard successfully.\n";
-                        match cli_clipboard::get_contents() {
-                            Ok(contents) => app.debug_string += &(contents + "\n"),
-                            Err(e) => app.debug_string += &(e.to_string() + "\n"),
+                if app.clipboard.is_ok() {
+                    let clipboard = app.clipboard.as_mut().unwrap();
+                    match clipboard.set_text(clipboard_string) {
+                        Ok(()) => {
+                            app.debug_string += "Missing cards copied to clipboard successfully.\n";
+                            match clipboard.get_text() {
+                                Ok(contents) => app.debug_string += &(contents + "\n"),
+                                Err(e) => app.debug_string += &(e.to_string() + "\n"),
+                            }
                         }
+                        Err(e) => app.debug_string += &e.to_string(),
                     }
-                    Err(e) => app.debug_string += &e.to_string(),
+                } else {
+                    app.debug_string += "Clipboard was not successfully created.\n";
                 }
             }
         }

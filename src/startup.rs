@@ -1,14 +1,16 @@
 use std::{
     error::Error,
+    ffi::OsString,
     fs::{self, create_dir},
-    time::SystemTime,
+    io::Write,
 };
 
 use chrono::{DateTime, Local};
 use directories_next::ProjectDirs;
+use reqwest::{Client, Method};
+use serde::Deserialize;
 
 use crate::{
-    app::SupportedOS,
     config::DecklistConfig,
     database::scryfall::{read_scryfall_database, ScryfallCard},
 };
@@ -93,51 +95,97 @@ pub async fn config_check(project_dir: ProjectDirs) -> ConfigCheck {
 }
 
 /// struct with database check information
+#[derive(Clone)]
 pub struct DatabaseCheck {
     pub database_exists: bool,
     pub database_status: String,
     pub database_cards: Option<Vec<ScryfallCard>>,
+    pub database_path: OsString,
+    pub filename: String,
+    pub need_dl: bool,
+    pub ready_load: bool,
 }
 
-/// checks for existence of database file, loads database if found
-/// NOTE: check that directory exists first before calling this one
-/// TODO: check for file age, etc.
-/// TODO: auto download file if out of date or not found
+impl Default for DatabaseCheck {
+    fn default() -> Self {
+        DatabaseCheck {
+            database_exists: false,
+            database_status: "Waiting on startup checks...".to_string(),
+            database_cards: None,
+            database_path: OsString::new(),
+            filename: String::new(),
+            need_dl: false,
+            ready_load: false,
+        }
+    }
+}
+
+/// checks for existence of database file
 pub async fn database_check(project_dir: ProjectDirs, max_age: u64) -> DatabaseCheck {
     let mut need_download = false;
+    let mut ready_load = false;
     let mut database_exists = false;
     let mut database_status =
         "No config file to indicate database location.  Load file manually in [DATABASE] tab."
             .to_string();
-    let mut database_cards = None;
+    let database_cards = None;
     let mut data_path = project_dir.data_local_dir().as_os_str().to_os_string();
+    let mut filename = String::new();
     match data_path.clone().into_string() {
         Ok(s) => {
-            if let Some((filename, date)) = find_scryfall_database(s) {
+            if let Some((fname, date)) = find_scryfall_database(s) {
                 // TODO: date magic here to get file age
                 let current_time: DateTime<Local> = Local::now();
                 let formatted_time = current_time.format("%Y%m%d%H%M%S").to_string();
-                data_path.push("/");
-                data_path.push(filename);
-                match read_scryfall_database(&data_path) {
-                    Ok(cards) => {
-                        database_exists = true;
-                        database_status = "Loaded cards".to_string();
-                        database_cards = Some(cards);
-                    }
-                    Err(e) => database_status = e.to_string(),
+                let time_num = match formatted_time.parse::<u64>() {
+                    Ok(n) => n,
+                    Err(_) => 0,
+                };
+                if (time_num - date) > (max_age * 1000000) {
+                    // NOTE: HHMMSS place
+                    need_download = true;
+                    database_status = format!("Database file found, but it is older than {} days.  Downloading new file...", max_age);
+                    filename = fname; // NOTE: go ahead and load latest filename in case DL fails
+                } else {
+                    database_status = format!("Recent database file found: {}", fname.clone());
+                    filename = fname;
+                    ready_load = true;
                 }
+                database_exists = true;
+                data_path.push("/");
             }
         }
         Err(_) => {
-            // don't read in a file - go to download
+            data_path.push("/");
+            need_download = true;
+            database_status = "No database file found.  Downloading file...".to_string();
         }
     };
     DatabaseCheck {
         database_exists,
         database_status,
         database_cards,
+        database_path: data_path,
+        need_dl: need_download,
+        ready_load,
+        filename,
     }
+}
+
+/// attempts to load given database file
+/// updates status accordingly
+pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
+    let mut data_path = dc.database_path.clone();
+    data_path.push(dc.filename.clone());
+    match read_scryfall_database(&data_path) {
+        Ok(cards) => {
+            dc.database_exists = true;
+            dc.database_status = "Loaded cards".to_string();
+            dc.database_cards = Some(cards);
+        }
+        Err(e) => dc.database_status = e.to_string(),
+    }
+    dc
 }
 
 /// finds the latest Scryfall OracleCards database file in the program data directory
@@ -175,90 +223,88 @@ fn find_scryfall_database(data_path: String) -> Option<(String, u64)> {
     result
 }
 
-/*
-/// structure containing the results of all the different startup checks
-/// to be passed back to main application thread and used to update main app struct
-pub struct StartupChecks {
-    pub directory_exists: bool,
-    pub data_directory_exists: bool,
-    pub config_exists: bool,
-    pub database_exists: bool,
-    pub collection_exists: bool,
-    pub config: DecklistConfig,
-    pub directory_status: String,
-    pub config_status: String,
-    pub database_status: String,
-    pub collection_status: String,
-    pub database_cards: Option<Vec<ScryfallCard>>,
-}
-*/
-
-/*
-/// checks for supported OS, then looks at OS appropriate file locations
-/// for things like config file/database/collection locations
-pub async fn startup_checks() -> StartupChecks {
-    //let os = get_os();
-    let directory_exists = directory_exist();
-    let data_directory_exists = data_directory_exist();
-    let mut config_exists = false;
-    let mut config = DecklistConfig::default();
-    let mut directory_status = "directory does not exist.  Hit enter to create it now.".to_string();
-    let mut config_status = "No directory for config file.".to_string();
-    let mut database_exists = false;
-    let mut database_status =
-        "No config file to indicate database location.  Load file manually in [DATABASE] tab."
-            .to_string();
-    let mut database_cards = None;
-    let collection_status =
-        "No config file to indicate collection location.  Load file manually in [COLLECTION] tab."
-            .to_string();
-    if directory_exists {
-        let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
-        directory_status = format!(
-            "Directory found at {:?}",
-            project_dir.config_dir().to_path_buf()
-        );
-        match config_exist(project_dir.clone()) {
-            Ok(c) => {
-                config = c;
-                config_status = "Config successfully loaded.".to_string();
-                config_exists = true;
-            }
-            Err(e) => {
-                config_status = format!(
-                    "Failed to load config file: {}.  Press C to create.  Using default settings...",
-                    e
+/// downloads latest OracleCards bulk data from Scryfall
+pub async fn dl_scryfall_latest(mut dc: DatabaseCheck) -> DatabaseCheck {
+    match scryfall_bulk_request(dc.database_path.clone()).await {
+        Ok(filename) => {
+            dc.filename = filename.clone();
+            dc.database_status = format!("JSON successfully downloaded: {}", filename);
+            dc.ready_load = true;
+            dc.need_dl = false;
+        }
+        Err(e) => {
+            if dc.filename.is_empty() {
+                // no previous file available
+                dc.database_status = format!("Failed to download file from Scryfall: {}", e);
+                dc.need_dl = false; // don't try to download again
+                dc.ready_load = false;
+            } else {
+                // try and load existing, out of date file
+                dc.database_status = format!(
+                    "Failed to download a new file from Scryfall: {}.  Using exisint file: {}",
+                    e,
+                    dc.filename.clone()
                 );
+                dc.ready_load = true;
+                dc.need_dl = false;
             }
         }
-        // TODO: check database exist/age/etc.
-        let mut data_path = project_dir.data_local_dir().as_os_str().to_os_string();
-        data_path.push("/short.json");
-        match read_scryfall_database(&data_path) {
-            Ok(cards) => {
-                database_exists = true;
-                database_status = "Loaded cards".to_string();
-                database_cards = Some(cards);
-            }
-            Err(e) => database_status = e.to_string(),
-        }
     }
-
-    StartupChecks {
-        directory_exists,
-        data_directory_exists,
-        config_exists,
-        database_exists,
-        collection_exists: false,
-        config,
-        directory_status,
-        config_status,
-        database_status,
-        collection_status,
-        database_cards,
-    }
+    dc
 }
-*/
+
+/// makes http requests to get latest bulk data from Scryfall
+async fn scryfall_bulk_request(
+    mut data_path: OsString,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let scryfall_client = Client::new();
+
+    // first request gets URI for latest data
+    let scryfall_request = scryfall_client
+        .request(
+            Method::GET,
+            "https://api.scryfall.com/bulk-data/oracle-cards",
+        )
+        .header("User-Agent", "decklistv0.1")
+        .header("Accept", "*/*");
+    let resp = scryfall_request
+        .send()
+        .await?
+        .json::<ScryfallResponse>()
+        .await?;
+
+    // make filename from latest URI
+    let uri = resp.download_uri.clone();
+    let uri_pieces: Vec<&str> = resp.download_uri.split("/").collect();
+    let name = uri_pieces[uri_pieces.len() - 1];
+    data_path.push(name);
+
+    // second request downloads JSON file to user data directory
+    let download_request = scryfall_client
+        .request(Method::GET, uri)
+        .header("User-Agent", "decklistv0.1")
+        .header("Accept", "application/file");
+    let dresp = download_request.send().await?.bytes().await?;
+    let mut file = std::fs::File::create(data_path)?;
+    file.write_all(&dresp)?;
+
+    Ok(name.to_string())
+}
+
+#[derive(Deserialize)]
+struct ScryfallResponse {
+    object: String,
+    id: String,
+    r#type: String,
+    updated_at: String,
+    uri: String,
+    name: String,
+    description: String,
+    size: i64,
+    download_uri: String,
+    content_type: String,
+    content_encoding: String,
+}
 
 /// checks for existence of decklist user directory
 fn directory_exist() -> bool {

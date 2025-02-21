@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 /// structure for all Scryfall card data for a unique card
 // TODO: map to JSON field names manually?  or rename?
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct ScryfallCard {
     pub object: ScryfallObject,
     pub id: String,
@@ -85,7 +85,7 @@ pub struct ScryfallCard {
 }
 
 /// represents different kinds of Scryfall objects
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum ScryfallObject {
     #[serde(rename = "card")]
     Card,
@@ -94,7 +94,7 @@ pub enum ScryfallObject {
 }
 
 /// different languages for MTG printings
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum Languages {
     #[serde(rename = "en")]
     English,
@@ -103,7 +103,7 @@ pub enum Languages {
 }
 
 /// different card layout options
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum CardLayouts {
     #[serde(rename = "normal")]
     Normal,
@@ -152,7 +152,7 @@ pub enum CardLayouts {
 }
 
 /// scryfall image statuses
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum ImageStatus {
     #[serde(rename = "highres_scan")]
     HighRes,
@@ -161,7 +161,7 @@ pub enum ImageStatus {
 }
 
 /// struct for all Scryfall image uris
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Clone)]
 pub struct ImageUris {
     pub small: String,
     pub normal: String,
@@ -172,7 +172,7 @@ pub struct ImageUris {
 }
 
 /// MtG card types
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum CardTypes {
     Artifact,
     Creature,
@@ -182,7 +182,7 @@ pub enum CardTypes {
     Land,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum MtGColors {
     #[serde(rename = "W")]
     White,
@@ -197,7 +197,7 @@ pub enum MtGColors {
 }
 
 /// MtG card keywords
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum MtGKeyWords {
     Trample,
     Haste,
@@ -511,7 +511,7 @@ pub enum MtGKeyWords {
 }
 
 /// card legality options for a specific format
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum Legality {
     #[serde(rename = "legal")]
     Legal,
@@ -524,7 +524,7 @@ pub enum Legality {
 }
 
 /// contains legal status of card in every Scryfall format
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Legalities {
     pub standard: Legality,
     pub future: Legality,
@@ -551,7 +551,7 @@ pub struct Legalities {
 }
 
 /// different game formats
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum GameFormat {
     #[serde(rename = "paper")]
     Paper,
@@ -566,7 +566,7 @@ pub enum GameFormat {
 }
 
 /// different kinds of finishes recognized by Scryfall
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum ScryfallFinishes {
     #[serde(rename = "foil")]
     Foil,
@@ -577,7 +577,7 @@ pub enum ScryfallFinishes {
 }
 
 /// Scryfall set classifications
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum ScryfallSetType {
     #[serde(rename = "core")]
     Core,
@@ -622,7 +622,7 @@ pub enum ScryfallSetType {
 }
 
 /// card rarities
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum MtGRarity {
     #[serde(rename = "common")]
     Common,
@@ -639,7 +639,7 @@ pub enum MtGRarity {
 }
 
 /// card border colors
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum BorderColor {
     #[serde(rename = "white")]
     White,
@@ -654,7 +654,7 @@ pub enum BorderColor {
 }
 
 /// Scryfall prices struct
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct ScryfallPrices {
     pub usd: Option<String>,        // Option<f64>,
     pub usd_foil: Option<String>,   // Option<f64>,
@@ -665,7 +665,7 @@ pub struct ScryfallPrices {
 }
 
 /// struct of all of Scryfall's related URIs
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct ScryfallRelated {
     #[serde(default)]
     pub gatherer: String,
@@ -678,7 +678,7 @@ pub struct ScryfallRelated {
 }
 
 /// struct of Scryfall purchase URIs
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Clone)]
 pub struct ScryfallPurchase {
     #[serde(default)]
     pub tcgplayer: String,

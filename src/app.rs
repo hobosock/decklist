@@ -1,7 +1,8 @@
 use crate::{
     collection::check_missing,
     startup::{
-        config_check, database_check, directory_check, ConfigCheck, DatabaseCheck, DirectoryCheck,
+        config_check, database_check, directory_check, dl_scryfall_latest, load_database_file,
+        ConfigCheck, DatabaseCheck, DirectoryCheck,
     },
 };
 use arboard::Clipboard;
@@ -69,15 +70,17 @@ pub struct App<'a> {
     pub config_done: bool,
     pub database_started: bool,
     pub database_done: bool,
+    pub dl_started: bool,
+    pub dl_done: bool,
+    pub load_started: bool,
+    pub load_done: bool,
     pub os: SupportedOS,
     pub directory_exist: bool,
     pub data_directory_exist: bool,
     pub config_exist: bool,
-    pub database_exist: bool,
     pub collection_exist: bool,
     pub directory_status: String,
     pub config_status: String,
-    pub database_status: String,
     pub collection_status: String,
     pub config: DecklistConfig,
     pub active_tab: MenuTabs,
@@ -93,7 +96,7 @@ pub struct App<'a> {
         std::sync::mpsc::Sender<DatabaseCheck>,
         std::sync::mpsc::Receiver<DatabaseCheck>,
     ),
-    pub card_database: Option<Vec<ScryfallCard>>,
+    pub dc: DatabaseCheck,
     pub collection: Option<Vec<CollectionCard>>,
     pub collection_file_name: Option<String>,
     pub collection_file: Option<File>,
@@ -133,22 +136,24 @@ impl Default for App<'_> {
             config_done: false,
             database_started: false,
             database_done: false,
+            dl_started: false,
+            dl_done: false,
+            load_started: false,
+            load_done: false,
             os: SupportedOS::default(),
             directory_exist: false,
             data_directory_exist: false,
             config_exist: false,
-            database_exist: false,
             collection_exist: false,
             directory_status: "Waiting on startup checks...".to_string(),
             config_status: "Waiting on startup checks...".to_string(),
-            database_status: "Waiting on startup checks...".to_string(),
             collection_status: "Waiting on startup checks...".to_string(),
             config: DecklistConfig::default(),
             active_tab: MenuTabs::default(),
             directory_channel: std::sync::mpsc::channel(),
             config_channel: std::sync::mpsc::channel(),
             database_channel: std::sync::mpsc::channel(),
-            card_database: None,
+            dc: DatabaseCheck::default(),
             collection: None,
             collection_file_name: None,
             collection_file: None,
@@ -233,11 +238,12 @@ impl App<'_> {
                     Err(_) => {}
                 }
             }
-            if self.data_directory_exist && !self.database_started {
+            if self.data_directory_exist && !self.database_started && self.config_done {
                 let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
                 let database_channel = self.database_channel.0.clone();
+                let max_age = self.config.database_age_limit;
                 thread::spawn(move || {
-                    let database_results = task::block_on(database_check(project_dir));
+                    let database_results = task::block_on(database_check(project_dir, max_age));
                     match database_channel.send(database_results) {
                         Ok(()) => {}
                         Err(_) => {}
@@ -249,12 +255,64 @@ impl App<'_> {
                 match self.database_channel.1.try_recv() {
                     Ok(dc) => {
                         self.database_done = true;
-                        self.database_exist = dc.database_exists;
-                        self.database_status = dc.database_status;
-                        self.card_database = dc.database_cards;
+                        self.dc.database_exists = dc.database_exists;
+                        self.dc.database_status = dc.database_status;
+                        self.dc.database_cards = dc.database_cards;
+                        self.dc.need_dl = dc.need_dl;
+                        self.dc.ready_load = dc.ready_load;
                         self.collection_exist = false;
                         self.collection_status =
                             "Manually load in [COLLECTION] tab until feature is added.".to_string();
+                        self.redraw = true;
+                    }
+                    Err(_) => {}
+                }
+            }
+            if self.dc.need_dl {
+                let database_channel = self.database_channel.0.clone();
+                // NOTE: it might seem like a waste to copy the whole database vector, but it
+                // should be None still - nothing has been loaded yet
+                let dc_clone = self.dc.clone();
+                tokio::spawn(async move {
+                    let database_results = task::block_on(dl_scryfall_latest(dc_clone));
+                    match database_channel.send(database_results) {
+                        Ok(()) => {}
+                        Err(_) => {}
+                    }
+                });
+                self.dl_started = true;
+            }
+            if self.dl_started && !self.dl_done {
+                self.debug_string += "waiting on download to finish...\n";
+                match self.database_channel.1.try_recv() {
+                    Ok(dc) => {
+                        self.debug_string += "download success!\n";
+                        self.dc = dc;
+                        self.dl_done = true;
+                        self.dl_started = false;
+                        self.redraw = true
+                    }
+                    Err(_) => {}
+                }
+            }
+            if self.dc.ready_load {
+                let database_channel = self.database_channel.0.clone();
+                let dc_clone = self.dc.clone();
+                thread::spawn(move || {
+                    let database_results = task::block_on(load_database_file(dc_clone));
+                    match database_channel.send(database_results) {
+                        Ok(()) => {}
+                        Err(_) => {}
+                    }
+                });
+                self.load_started = true;
+            }
+            if self.load_started && !self.load_done {
+                match self.database_channel.1.try_recv() {
+                    Ok(dc) => {
+                        self.dc = dc;
+                        self.load_done = true;
+                        self.load_started = true;
                         self.redraw = true;
                     }
                     Err(_) => {}
@@ -276,8 +334,8 @@ impl App<'_> {
                             );
                             self.missing_lines = Vec::new();
                             for card in self.missing_cards.clone().unwrap() {
-                                let missing_str = if self.card_database.is_some() {
-                                    check_missing(&self.card_database.as_ref().unwrap(), &card)
+                                let missing_str = if self.dc.database_cards.is_some() {
+                                    check_missing(&self.dc.database_cards.as_ref().unwrap(), &card)
                                 } else {
                                     "".to_string()
                                 };
@@ -303,8 +361,8 @@ impl App<'_> {
                             );
                             self.missing_lines = Vec::new();
                             for card in self.missing_cards.clone().unwrap() {
-                                let missing_str = if self.card_database.is_some() {
-                                    check_missing(&self.card_database.as_ref().unwrap(), &card)
+                                let missing_str = if self.dc.database_cards.is_some() {
+                                    check_missing(&self.dc.database_cards.as_ref().unwrap(), &card)
                                 } else {
                                     "".to_string()
                                 };

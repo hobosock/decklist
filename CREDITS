@@ -1,6 +1,7 @@
 The following crates (libraries) were used in this project under the MIT license.
 async-std
 arboard
+chrono
 crossterm
 csv
 directories-next

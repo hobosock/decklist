@@ -51,7 +51,7 @@ pub async fn read_moxfield_collection(
 fn squash_collection(collection_in: Vec<CollectionCard>) -> Vec<CollectionCard> {
     let mut collection_out: Vec<CollectionCard> = Vec::new();
     for card in collection_in.iter() {
-        if collection_out.len() > 0 {
+        if !collection_out.is_empty() {
             // check if name already exists
             let mut matched = false;
             let mut bonus = 0;
@@ -130,13 +130,13 @@ pub fn find_missing_cards(
         }
     }
     if missing_cards.is_empty() {
-        return None;
+        None
     } else {
-        return Some(missing_cards);
+        Some(missing_cards)
     }
 }
 
-pub fn check_missing(database: &Vec<ScryfallCard>, missing_card: &CollectionCard) -> String {
+pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -> String {
     let mut found = false;
     for card in database.iter() {
         if remove_diacritics(&missing_card.name) == remove_diacritics(&card.name) {

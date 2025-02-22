@@ -10,10 +10,7 @@ use ratatui::{
     style::{Style, Stylize},
     symbols::border,
     text::{Line, Text},
-    widgets::{
-        block::{Position, Title},
-        Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, Tabs, Wrap,
-    },
+    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, Tabs, Wrap},
     Frame, Terminal,
 };
 use ratatui_explorer::FileExplorer;
@@ -82,13 +79,11 @@ pub fn ui(
     .select(app.active_tab as usize);
 
     // define main/center area for display
-    let version = Title::from(
-        Line::from(vec!["| Deck Checker v0.1.0 |".into()]).style(Style::default().cyan().bold()),
-    )
-    .alignment(Alignment::Center)
-    .position(Position::Bottom);
+    let version =
+        Line::from(vec!["| Deck Checker v0.1.0 |".into()]).style(Style::default().cyan().bold());
     let main_block = Block::default()
-        .title(version)
+        .title_bottom(version)
+        .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
         .border_set(border::THICK);
 

@@ -17,7 +17,6 @@ use ratatui_explorer::{File, FileExplorer};
 use crate::{
     collection::{find_missing_cards, read_decklist, read_moxfield_collection, CollectionCard},
     config::DecklistConfig,
-    database::scryfall::ScryfallCard,
     startup::{create_config, create_data_directory, create_directory},
     tui::core::{ui, MenuTabs, Tui},
 };
@@ -195,10 +194,7 @@ impl App<'_> {
             let directory_channel = self.directory_channel.0.clone();
             thread::spawn(move || {
                 let directory_results = task::block_on(directory_check());
-                match directory_channel.send(directory_results) {
-                    Ok(()) => {}
-                    Err(_) => {}
-                }
+                if let Ok(()) = directory_channel.send(directory_results) {};
             });
             self.dc_started = true;
         }
@@ -206,16 +202,13 @@ impl App<'_> {
         while !self.exit {
             if !self.startup {
                 // check for startup checks to resolve and update app status
-                match self.directory_channel.1.try_recv() {
-                    Ok(directory_check) => {
-                        self.startup = true;
-                        self.directory_exist = directory_check.directory_exists;
-                        self.data_directory_exist = directory_check.data_directory_exists;
-                        self.directory_status = directory_check.directory_status;
-                        self.redraw = true;
-                        self.dc.database_path = directory_check.data_path; // TODO: do config also
-                    }
-                    Err(_) => {}
+                if let Ok(directory_check) = self.directory_channel.1.try_recv() {
+                    self.startup = true;
+                    self.directory_exist = directory_check.directory_exists;
+                    self.data_directory_exist = directory_check.data_directory_exists;
+                    self.directory_status = directory_check.directory_status;
+                    self.redraw = true;
+                    self.dc.database_path = directory_check.data_path; // TODO: do config also
                 }
             }
             // spin up other startup processes once directories have been confirmed
@@ -224,22 +217,16 @@ impl App<'_> {
                 let config_channel = self.config_channel.0.clone();
                 thread::spawn(move || {
                     let config_results = task::block_on(config_check(project_dir));
-                    match config_channel.send(config_results) {
-                        Ok(()) => {}
-                        Err(_) => {}
-                    }
+                    if let Ok(()) = config_channel.send(config_results) {};
                 });
                 self.config_started = true;
             }
             if !self.config_done {
-                match self.config_channel.1.try_recv() {
-                    Ok(cc) => {
-                        self.config_done = true;
-                        self.config_exist = cc.config_exists;
-                        self.config_status = cc.config_status;
-                        self.redraw = true;
-                    }
-                    Err(_) => {}
+                if let Ok(cc) = self.config_channel.1.try_recv() {
+                    self.config_done = true;
+                    self.config_exist = cc.config_exists;
+                    self.config_status = cc.config_status;
+                    self.redraw = true;
                 }
             }
             if self.data_directory_exist && !self.database_started && self.config_done {
@@ -248,29 +235,23 @@ impl App<'_> {
                 let dc_path = self.dc.database_path.clone();
                 thread::spawn(move || {
                     let database_results = task::block_on(database_check(dc_path, max_age));
-                    match database_channel.send(database_results) {
-                        Ok(()) => {}
-                        Err(_) => {}
-                    }
+                    if let Ok(()) = database_channel.send(database_results) {};
                 });
                 self.database_started = true;
             }
             if !self.database_done {
-                match self.database_channel.1.try_recv() {
-                    Ok(dc) => {
-                        self.database_done = true;
-                        self.dc.database_exists = dc.database_exists;
-                        self.dc.database_status = dc.database_status;
-                        self.dc.database_cards = dc.database_cards;
-                        self.dc.need_dl = dc.need_dl;
-                        self.dc.ready_load = dc.ready_load;
-                        self.dc.filename = dc.filename;
-                        self.collection_exist = false;
-                        self.collection_status =
-                            "Manually load in [COLLECTION] tab until feature is added.".to_string();
-                        self.redraw = true;
-                    }
-                    Err(_) => {}
+                if let Ok(dc) = self.database_channel.1.try_recv() {
+                    self.database_done = true;
+                    self.dc.database_exists = dc.database_exists;
+                    self.dc.database_status = dc.database_status;
+                    self.dc.database_cards = dc.database_cards;
+                    self.dc.need_dl = dc.need_dl;
+                    self.dc.ready_load = dc.ready_load;
+                    self.dc.filename = dc.filename;
+                    self.collection_exist = false;
+                    self.collection_status =
+                        "Manually load in [COLLECTION] tab until feature is added.".to_string();
+                    self.redraw = true;
                 }
             }
             if self.dc.need_dl && !self.dl_started {
@@ -280,23 +261,17 @@ impl App<'_> {
                 let dc_clone = self.dc.clone();
                 thread::spawn(move || {
                     let database_results = task::block_on(dl_scryfall_latest(dc_clone));
-                    match database_channel.send(database_results) {
-                        Ok(()) => {}
-                        Err(_) => {}
-                    }
+                    if let Ok(()) = database_channel.send(database_results) {};
                 });
                 self.dl_started = true;
             }
             if self.dl_started && !self.dl_done {
-                match self.database_channel.1.try_recv() {
-                    Ok(dc) => {
-                        self.debug_string += "received response from download thread!\n";
-                        self.dc = dc;
-                        self.dl_done = true;
-                        self.dl_started = false;
-                        self.redraw = true
-                    }
-                    Err(_) => {}
+                if let Ok(dc) = self.database_channel.1.try_recv() {
+                    self.debug_string += "received response from download thread!\n";
+                    self.dc = dc;
+                    self.dl_done = true;
+                    self.dl_started = false;
+                    self.redraw = true
                 }
             }
             if self.dc.ready_load && !self.load_started {
@@ -304,79 +279,66 @@ impl App<'_> {
                 let dc_clone = self.dc.clone();
                 thread::spawn(move || {
                     let database_results = task::block_on(load_database_file(dc_clone));
-                    match database_channel.send(database_results) {
-                        Ok(()) => {}
-                        Err(_) => {}
-                    }
+                    if let Ok(()) = database_channel.send(database_results) {};
                 });
                 self.load_started = true;
             }
             if self.load_started && !self.load_done {
-                match self.database_channel.1.try_recv() {
-                    Ok(dc) => {
-                        self.dc = dc;
-                        self.load_done = true;
-                        self.load_started = false;
-                        self.redraw = true;
-                    }
-                    Err(_) => {}
+                if let Ok(dc) = self.database_channel.1.try_recv() {
+                    self.dc = dc;
+                    self.load_done = true;
+                    self.load_started = false;
+                    self.redraw = true;
                 }
             }
-            // TODO: eventually have collection check separate
             if self.loading_collection {
-                match self.collection_channel.1.try_recv() {
-                    Ok(msg) => {
-                        self.debug_string += &msg.debug;
-                        self.collection = msg.collection;
-                        self.collection_status = msg.status;
-                        self.collection_exist = msg.exist;
-                        self.loading_collection = false;
-                        if self.collection.is_some() && self.decklist.is_some() {
-                            self.missing_cards = find_missing_cards(
-                                self.collection.clone().unwrap(),
-                                self.decklist.clone().unwrap(),
-                            );
-                            self.missing_lines = Vec::new();
-                            for card in self.missing_cards.clone().unwrap() {
-                                let missing_str = if self.dc.database_cards.is_some() {
-                                    check_missing(&self.dc.database_cards.as_ref().unwrap(), &card)
-                                } else {
-                                    "".to_string()
-                                };
-                                self.missing_lines
-                                    .push(Line::from(format!("{}{}", card, missing_str)));
-                            }
+                if let Ok(msg) = self.collection_channel.1.try_recv() {
+                    self.debug_string += &msg.debug;
+                    self.collection = msg.collection;
+                    self.collection_status = msg.status;
+                    self.collection_exist = msg.exist;
+                    self.loading_collection = false;
+                    if self.collection.is_some() && self.decklist.is_some() {
+                        self.missing_cards = find_missing_cards(
+                            self.collection.clone().unwrap(),
+                            self.decklist.clone().unwrap(),
+                        );
+                        self.missing_lines = Vec::new();
+                        for card in self.missing_cards.clone().unwrap() {
+                            let missing_str = if self.dc.database_cards.is_some() {
+                                check_missing(self.dc.database_cards.as_ref().unwrap(), &card)
+                            } else {
+                                "".to_string()
+                            };
+                            self.missing_lines
+                                .push(Line::from(format!("{}{}", card, missing_str)));
                         }
-                        self.redraw = true;
                     }
-                    Err(_) => {}
+                    self.redraw = true;
                 }
             }
             if self.loading_decklist {
-                match self.decklist_channel.1.try_recv() {
-                    Ok(msg) => {
-                        self.decklist = msg.decklist;
-                        self.decklist_status = msg.status;
-                        self.loading_decklist = false;
-                        if self.collection.is_some() && self.decklist.is_some() {
-                            self.missing_cards = find_missing_cards(
-                                self.collection.clone().unwrap(),
-                                self.decklist.clone().unwrap(),
-                            );
-                            self.missing_lines = Vec::new();
-                            for card in self.missing_cards.clone().unwrap() {
-                                let missing_str = if self.dc.database_cards.is_some() {
-                                    check_missing(&self.dc.database_cards.as_ref().unwrap(), &card)
-                                } else {
-                                    "".to_string()
-                                };
-                                self.missing_lines
-                                    .push(Line::from(format!("{}{}", card, missing_str)));
-                            }
+                if let Ok(msg) = self.decklist_channel.1.try_recv() {
+                    self.decklist = msg.decklist;
+                    self.decklist_status = msg.status;
+                    self.loading_decklist = false;
+                    if self.collection.is_some() && self.decklist.is_some() {
+                        self.missing_cards = find_missing_cards(
+                            self.collection.clone().unwrap(),
+                            self.decklist.clone().unwrap(),
+                        );
+                        self.missing_lines = Vec::new();
+                        for card in self.missing_cards.clone().unwrap() {
+                            let missing_str = if self.dc.database_cards.is_some() {
+                                check_missing(self.dc.database_cards.as_ref().unwrap(), &card)
+                            } else {
+                                "".to_string()
+                            };
+                            self.missing_lines
+                                .push(Line::from(format!("{}{}", card, missing_str)));
                         }
-                        self.redraw = true;
                     }
-                    Err(_) => {}
+                    self.redraw = true;
                 }
             }
             if self.redraw {
@@ -557,15 +519,11 @@ fn s_press(app: &mut App) {
                                 message.debug += &format!("Error reading CSV: {}", e);
                             }
                         }
-                        match collection_channel.send(message) {
-                            Ok(()) => {}
-                            Err(_) => {}
-                        }
+                        if let Ok(()) = collection_channel.send(message) {};
                     });
                 } else {
                     app.collection_status = "Encountered error with file path.".to_string();
                 }
-            } else {
             }
         }
         MenuTabs::Deck => {
@@ -588,10 +546,7 @@ fn s_press(app: &mut App) {
                                 message.status = e.to_string();
                             }
                         }
-                        match decklist_channel.send(message) {
-                            Ok(()) => {}
-                            Err(_) => {}
-                        }
+                        if let Ok(()) = decklist_channel.send(message) {};
                     });
                 }
             }

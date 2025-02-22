@@ -1,15 +1,13 @@
 use std::{
     error::Error,
-    ffi::OsString,
     fs::{self, create_dir},
-    io::Write,
     path::PathBuf,
     time::Duration,
 };
 
 use chrono::{DateTime, Local};
 use directories_next::ProjectDirs;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use ureq::Agent;
 
 use crate::{
@@ -83,7 +81,7 @@ pub struct ConfigCheck {
 pub async fn config_check(project_dir: ProjectDirs) -> ConfigCheck {
     let mut config_exists = false;
     let mut config = DecklistConfig::default();
-    let mut config_status = "No directory for config file.".to_string();
+    let config_status;
     match config_exist(project_dir) {
         Ok(c) => {
             config = c;
@@ -142,10 +140,7 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
     if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
         let current_time: DateTime<Local> = Local::now();
         let formatted_time = current_time.format("%Y%m%d%H%M%S").to_string();
-        let time_num = match formatted_time.parse::<u64>() {
-            Ok(n) => n,
-            Err(_) => 0,
-        };
+        let time_num = formatted_time.parse::<u64>().unwrap_or(0);
         if (time_num - date) > (max_age * 1000000) {
             // NOTE: HHMMSS place
             need_download = true;
@@ -197,28 +192,25 @@ fn find_scryfall_database(data_path: PathBuf) -> Option<(String, u64)> {
     let mut options = Vec::new();
     let mut dates = Vec::new();
     for item in items {
-        match item {
-            Ok(f) => {
-                let f_str = f.file_name().into_string();
-                if f_str.is_ok() && f_str.as_ref().unwrap().contains("oracle-cards") {
-                    let f_string = f_str.unwrap();
-                    options.push(f_string.clone());
-                    let sections: Vec<&str> = f_string.split("-").collect();
-                    let subsections: Vec<&str> = sections[2].split('.').collect(); // ######.json
-                    match subsections[0].trim().parse::<u64>() {
-                        Ok(num) => dates.push(num),
-                        Err(_) => dates.push(0),
-                    }
+        if let Ok(f) = item {
+            let f_str = f.file_name().into_string();
+            if f_str.is_ok() && f_str.as_ref().unwrap().contains("oracle-cards") {
+                let f_string = f_str.unwrap();
+                options.push(f_string.clone());
+                let sections: Vec<&str> = f_string.split("-").collect();
+                let subsections: Vec<&str> = sections[2].split('.').collect(); // ######.json
+                match subsections[0].trim().parse::<u64>() {
+                    Ok(num) => dates.push(num),
+                    Err(_) => dates.push(0),
                 }
             }
-            Err(_) => {}
         }
     }
-    let result = match dates.iter().enumerate().max() {
-        Some((position, date)) => Some((options[position].clone(), *date)),
-        None => None,
-    };
-    result
+    dates
+        .iter()
+        .enumerate()
+        .max()
+        .map(|(position, date)| (options[position].clone(), *date))
 }
 
 /// downloads latest OracleCards bulk data from Scryfall
@@ -290,7 +282,7 @@ async fn scryfall_bulk_request(
     Ok(name.to_string())
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 struct ScryfallResponse {
     object: String,
     id: String,

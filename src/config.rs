@@ -13,7 +13,7 @@ pub struct DecklistConfig {
 
 impl Default for DecklistConfig {
     fn default() -> Self {
-        // TODO: error proof here
+        // TODO: error proof here - I think this just generates a blank
         let project_dir = ProjectDirs::from("", "", "decklist")
             .unwrap()
             .data_local_dir()

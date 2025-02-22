@@ -1,6 +1,7 @@
 The following crates (libraries) were used in this project under the MIT license.
 async-std
-cli-clipboard
+arboard
+chrono
 crossterm
 csv
 directories-next
@@ -12,5 +13,6 @@ serde_json
 tokio
 tokio-util
 toml
+ureq
 
 Diacritics (no license given)

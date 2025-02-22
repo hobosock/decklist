@@ -1,5 +1,13 @@
-use crate::{collection::check_missing, startup::startup_checks};
+use crate::{
+    collection::check_missing,
+    startup::{
+        config_check, database_check, directory_check, dl_scryfall_latest, load_database_file,
+        ConfigCheck, DatabaseCheck, DirectoryCheck,
+    },
+};
+use arboard::Clipboard;
 use async_std::task;
+use directories_next::ProjectDirs;
 use std::{io, thread, time::Duration};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
@@ -9,8 +17,7 @@ use ratatui_explorer::{File, FileExplorer};
 use crate::{
     collection::{find_missing_cards, read_decklist, read_moxfield_collection, CollectionCard},
     config::DecklistConfig,
-    database::scryfall::ScryfallCard,
-    startup::{create_config, create_data_directory, create_directory, StartupChecks},
+    startup::{create_config, create_data_directory, create_directory},
     tui::core::{ui, MenuTabs, Tui},
 };
 
@@ -58,23 +65,38 @@ impl Default for DecklistMessage {
 pub struct App<'a> {
     exit: bool,
     pub startup: bool,
+    pub config_started: bool,
+    pub config_done: bool,
+    pub database_started: bool,
+    pub database_done: bool,
+    pub dc_started: bool,
+    pub dl_started: bool,
+    pub dl_done: bool,
+    pub load_started: bool,
+    pub load_done: bool,
     pub os: SupportedOS,
     pub directory_exist: bool,
     pub data_directory_exist: bool,
     pub config_exist: bool,
-    pub database_exist: bool,
     pub collection_exist: bool,
     pub directory_status: String,
     pub config_status: String,
-    pub database_status: String,
     pub collection_status: String,
     pub config: DecklistConfig,
     pub active_tab: MenuTabs,
-    pub startup_channel: (
-        std::sync::mpsc::Sender<StartupChecks>,
-        std::sync::mpsc::Receiver<StartupChecks>,
+    pub directory_channel: (
+        std::sync::mpsc::Sender<DirectoryCheck>,
+        std::sync::mpsc::Receiver<DirectoryCheck>,
     ),
-    pub card_database: Option<Vec<ScryfallCard>>,
+    pub config_channel: (
+        std::sync::mpsc::Sender<ConfigCheck>,
+        std::sync::mpsc::Receiver<ConfigCheck>,
+    ),
+    pub database_channel: (
+        std::sync::mpsc::Sender<DatabaseCheck>,
+        std::sync::mpsc::Receiver<DatabaseCheck>,
+    ),
+    pub dc: DatabaseCheck,
     pub collection: Option<Vec<CollectionCard>>,
     pub collection_file_name: Option<String>,
     pub collection_file: Option<File>,
@@ -102,6 +124,7 @@ pub struct App<'a> {
     pub loading_collection: bool,
     pub loading_decklist: bool,
     pub missing_lines: Vec<Line<'a>>,
+    pub clipboard: Result<Clipboard, arboard::Error>,
 }
 
 impl Default for App<'_> {
@@ -109,20 +132,29 @@ impl Default for App<'_> {
         Self {
             exit: false,
             startup: false,
+            config_started: false,
+            config_done: false,
+            database_started: false,
+            database_done: false,
+            dc_started: false,
+            dl_started: false,
+            dl_done: false,
+            load_started: false,
+            load_done: false,
             os: SupportedOS::default(),
             directory_exist: false,
             data_directory_exist: false,
             config_exist: false,
-            database_exist: false,
             collection_exist: false,
             directory_status: "Waiting on startup checks...".to_string(),
             config_status: "Waiting on startup checks...".to_string(),
-            database_status: "Waiting on startup checks...".to_string(),
             collection_status: "Waiting on startup checks...".to_string(),
             config: DecklistConfig::default(),
             active_tab: MenuTabs::default(),
-            startup_channel: std::sync::mpsc::channel(),
-            card_database: None,
+            directory_channel: std::sync::mpsc::channel(),
+            config_channel: std::sync::mpsc::channel(),
+            database_channel: std::sync::mpsc::channel(),
+            dc: DatabaseCheck::default(),
             collection: None,
             collection_file_name: None,
             collection_file: None,
@@ -144,6 +176,7 @@ impl Default for App<'_> {
             loading_collection: false,
             loading_decklist: false,
             missing_lines: Vec::new(),
+            clipboard: Clipboard::new(),
         }
     }
 }
@@ -156,92 +189,156 @@ impl App<'_> {
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
     ) -> io::Result<()> {
-        // start new thread to run start up processes
-        if !self.startup {
-            let startup_channel = self.startup_channel.0.clone();
+        // start new threads to run start up processes
+        if !self.startup && !self.dc_started {
+            let directory_channel = self.directory_channel.0.clone();
             thread::spawn(move || {
-                let startup_results = task::block_on(startup_checks());
-                match startup_channel.send(startup_results) {
-                    Ok(()) => {}
-                    Err(_) => {}
-                }
+                let directory_results = task::block_on(directory_check());
+                if let Ok(()) = directory_channel.send(directory_results) {};
             });
+            self.dc_started = true;
         }
         // main loop
         while !self.exit {
-            // check for startup checks to resolve and update app status
-            match self.startup_channel.1.try_recv() {
-                Ok(startup_checks) => {
-                    // TODO: just add a StartupChecks struct to self struct, pass in one line
+            if !self.startup {
+                // check for startup checks to resolve and update app status
+                if let Ok(directory_check) = self.directory_channel.1.try_recv() {
                     self.startup = true;
-                    self.config_exist = startup_checks.config_exists;
-                    self.database_exist = startup_checks.database_exists;
-                    self.collection_exist = startup_checks.collection_exists;
-                    self.directory_exist = startup_checks.directory_exists;
-                    self.data_directory_exist = startup_checks.data_directory_exists;
-                    self.database_status = startup_checks.database_status;
-                    self.card_database = startup_checks.database_cards;
-                    self.directory_status = startup_checks.directory_status;
-                    self.config_status = startup_checks.config_status;
-                    self.collection_status = startup_checks.collection_status;
+                    self.directory_exist = directory_check.directory_exists;
+                    self.data_directory_exist = directory_check.data_directory_exists;
+                    self.directory_status = directory_check.directory_status;
+                    self.redraw = true;
+                    self.dc.database_path = directory_check.data_path; // TODO: do config also
+                }
+            }
+            // spin up other startup processes once directories have been confirmed
+            if self.directory_exist && !self.config_started {
+                let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
+                let config_channel = self.config_channel.0.clone();
+                thread::spawn(move || {
+                    let config_results = task::block_on(config_check(project_dir));
+                    if let Ok(()) = config_channel.send(config_results) {};
+                });
+                self.config_started = true;
+            }
+            if !self.config_done {
+                if let Ok(cc) = self.config_channel.1.try_recv() {
+                    self.config_done = true;
+                    self.config_exist = cc.config_exists;
+                    self.config_status = cc.config_status;
                     self.redraw = true;
                 }
-                Err(_) => {}
+            }
+            if self.data_directory_exist && !self.database_started && self.config_done {
+                let database_channel = self.database_channel.0.clone();
+                let max_age = self.config.database_age_limit;
+                let dc_path = self.dc.database_path.clone();
+                thread::spawn(move || {
+                    let database_results = task::block_on(database_check(dc_path, max_age));
+                    if let Ok(()) = database_channel.send(database_results) {};
+                });
+                self.database_started = true;
+            }
+            if !self.database_done {
+                if let Ok(dc) = self.database_channel.1.try_recv() {
+                    self.database_done = true;
+                    self.dc.database_exists = dc.database_exists;
+                    self.dc.database_status = dc.database_status;
+                    self.dc.database_cards = dc.database_cards;
+                    self.dc.need_dl = dc.need_dl;
+                    self.dc.ready_load = dc.ready_load;
+                    self.dc.filename = dc.filename;
+                    self.collection_exist = false;
+                    self.collection_status =
+                        "Manually load in [COLLECTION] tab until feature is added.".to_string();
+                    self.redraw = true;
+                }
+            }
+            if self.dc.need_dl && !self.dl_started {
+                let database_channel = self.database_channel.0.clone();
+                // NOTE: it might seem like a waste to copy the whole database vector, but it
+                // should be None still - nothing has been loaded yet
+                let dc_clone = self.dc.clone();
+                thread::spawn(move || {
+                    let database_results = task::block_on(dl_scryfall_latest(dc_clone));
+                    if let Ok(()) = database_channel.send(database_results) {};
+                });
+                self.dl_started = true;
+            }
+            if self.dl_started && !self.dl_done {
+                if let Ok(dc) = self.database_channel.1.try_recv() {
+                    self.debug_string += "received response from download thread!\n";
+                    self.dc = dc;
+                    self.dl_done = true;
+                    self.dl_started = false;
+                    self.redraw = true
+                }
+            }
+            if self.dc.ready_load && !self.load_started {
+                let database_channel = self.database_channel.0.clone();
+                let dc_clone = self.dc.clone();
+                thread::spawn(move || {
+                    let database_results = task::block_on(load_database_file(dc_clone));
+                    if let Ok(()) = database_channel.send(database_results) {};
+                });
+                self.load_started = true;
+            }
+            if self.load_started && !self.load_done {
+                if let Ok(dc) = self.database_channel.1.try_recv() {
+                    self.dc = dc;
+                    self.load_done = true;
+                    self.load_started = false;
+                    self.redraw = true;
+                }
             }
             if self.loading_collection {
-                match self.collection_channel.1.try_recv() {
-                    Ok(msg) => {
-                        self.debug_string += &msg.debug;
-                        self.collection = msg.collection;
-                        self.collection_status = msg.status;
-                        self.collection_exist = msg.exist;
-                        self.loading_collection = false;
-                        if self.collection.is_some() && self.decklist.is_some() {
-                            self.missing_cards = find_missing_cards(
-                                self.collection.clone().unwrap(),
-                                self.decklist.clone().unwrap(),
-                            );
-                            self.missing_lines = Vec::new();
-                            for card in self.missing_cards.clone().unwrap() {
-                                let missing_str = if self.card_database.is_some() {
-                                    check_missing(&self.card_database.as_ref().unwrap(), &card)
-                                } else {
-                                    "".to_string()
-                                };
-                                self.missing_lines
-                                    .push(Line::from(format!("{}{}", card, missing_str)));
-                            }
+                if let Ok(msg) = self.collection_channel.1.try_recv() {
+                    self.debug_string += &msg.debug;
+                    self.collection = msg.collection;
+                    self.collection_status = msg.status;
+                    self.collection_exist = msg.exist;
+                    self.loading_collection = false;
+                    if self.collection.is_some() && self.decklist.is_some() {
+                        self.missing_cards = find_missing_cards(
+                            self.collection.clone().unwrap(),
+                            self.decklist.clone().unwrap(),
+                        );
+                        self.missing_lines = Vec::new();
+                        for card in self.missing_cards.clone().unwrap() {
+                            let missing_str = if self.dc.database_cards.is_some() {
+                                check_missing(self.dc.database_cards.as_ref().unwrap(), &card)
+                            } else {
+                                "".to_string()
+                            };
+                            self.missing_lines
+                                .push(Line::from(format!("{}{}", card, missing_str)));
                         }
-                        self.redraw = true;
                     }
-                    Err(_) => {}
+                    self.redraw = true;
                 }
             }
             if self.loading_decklist {
-                match self.decklist_channel.1.try_recv() {
-                    Ok(msg) => {
-                        self.decklist = msg.decklist;
-                        self.decklist_status = msg.status;
-                        self.loading_decklist = false;
-                        if self.collection.is_some() && self.decklist.is_some() {
-                            self.missing_cards = find_missing_cards(
-                                self.collection.clone().unwrap(),
-                                self.decklist.clone().unwrap(),
-                            );
-                            self.missing_lines = Vec::new();
-                            for card in self.missing_cards.clone().unwrap() {
-                                let missing_str = if self.card_database.is_some() {
-                                    check_missing(&self.card_database.as_ref().unwrap(), &card)
-                                } else {
-                                    "".to_string()
-                                };
-                                self.missing_lines
-                                    .push(Line::from(format!("{}{}", card, missing_str)));
-                            }
+                if let Ok(msg) = self.decklist_channel.1.try_recv() {
+                    self.decklist = msg.decklist;
+                    self.decklist_status = msg.status;
+                    self.loading_decklist = false;
+                    if self.collection.is_some() && self.decklist.is_some() {
+                        self.missing_cards = find_missing_cards(
+                            self.collection.clone().unwrap(),
+                            self.decklist.clone().unwrap(),
+                        );
+                        self.missing_lines = Vec::new();
+                        for card in self.missing_cards.clone().unwrap() {
+                            let missing_str = if self.dc.database_cards.is_some() {
+                                check_missing(self.dc.database_cards.as_ref().unwrap(), &card)
+                            } else {
+                                "".to_string()
+                            };
+                            self.missing_lines
+                                .push(Line::from(format!("{}{}", card, missing_str)));
                         }
-                        self.redraw = true;
                     }
-                    Err(_) => {}
+                    self.redraw = true;
                 }
             }
             if self.redraw {
@@ -375,15 +472,20 @@ fn c_press(app: &mut App) {
                     clipboard_string += &format!("{}\n", card);
                 }
                 app.debug_string += &clipboard_string;
-                match cli_clipboard::set_contents(clipboard_string) {
-                    Ok(()) => {
-                        app.debug_string += "Missing cards copied to clipboard successfully.\n";
-                        match cli_clipboard::get_contents() {
-                            Ok(contents) => app.debug_string += &(contents + "\n"),
-                            Err(e) => app.debug_string += &(e.to_string() + "\n"),
+                if app.clipboard.is_ok() {
+                    let clipboard = app.clipboard.as_mut().unwrap();
+                    match clipboard.set_text(clipboard_string) {
+                        Ok(()) => {
+                            app.debug_string += "Missing cards copied to clipboard successfully.\n";
+                            match clipboard.get_text() {
+                                Ok(contents) => app.debug_string += &(contents + "\n"),
+                                Err(e) => app.debug_string += &(e.to_string() + "\n"),
+                            }
                         }
+                        Err(e) => app.debug_string += &e.to_string(),
                     }
-                    Err(e) => app.debug_string += &e.to_string(),
+                } else {
+                    app.debug_string += "Clipboard was not successfully created.\n";
                 }
             }
         }
@@ -417,15 +519,11 @@ fn s_press(app: &mut App) {
                                 message.debug += &format!("Error reading CSV: {}", e);
                             }
                         }
-                        match collection_channel.send(message) {
-                            Ok(()) => {}
-                            Err(_) => {}
-                        }
+                        if let Ok(()) = collection_channel.send(message) {};
                     });
                 } else {
                     app.collection_status = "Encountered error with file path.".to_string();
                 }
-            } else {
             }
         }
         MenuTabs::Deck => {
@@ -448,10 +546,7 @@ fn s_press(app: &mut App) {
                                 message.status = e.to_string();
                             }
                         }
-                        match decklist_channel.send(message) {
-                            Ok(()) => {}
-                            Err(_) => {}
-                        }
+                        if let Ok(()) = decklist_channel.send(message) {};
                     });
                 }
             }

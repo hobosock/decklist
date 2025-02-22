@@ -70,6 +70,7 @@ pub struct App<'a> {
     pub config_done: bool,
     pub database_started: bool,
     pub database_done: bool,
+    pub dc_started: bool,
     pub dl_started: bool,
     pub dl_done: bool,
     pub load_started: bool,
@@ -121,10 +122,6 @@ pub struct App<'a> {
         std::sync::mpsc::Sender<DecklistMessage>,
         std::sync::mpsc::Receiver<DecklistMessage>,
     ),
-    pub download_channel: (
-        tokio::sync::mpsc::Sender<DatabaseCheck>,
-        tokio::sync::mpsc::Receiver<DatabaseCheck>,
-    ),
     pub loading_collection: bool,
     pub loading_decklist: bool,
     pub missing_lines: Vec<Line<'a>>,
@@ -140,6 +137,7 @@ impl Default for App<'_> {
             config_done: false,
             database_started: false,
             database_done: false,
+            dc_started: false,
             dl_started: false,
             dl_done: false,
             load_started: false,
@@ -176,7 +174,6 @@ impl Default for App<'_> {
             redraw: true,
             collection_channel: std::sync::mpsc::channel(),
             decklist_channel: std::sync::mpsc::channel(),
-            download_channel: tokio::sync::mpsc::channel(1),
             loading_collection: false,
             loading_decklist: false,
             missing_lines: Vec::new(),
@@ -194,7 +191,7 @@ impl App<'_> {
         explorer2: &mut FileExplorer,
     ) -> io::Result<()> {
         // start new threads to run start up processes
-        if !self.startup {
+        if !self.startup && !self.dc_started {
             let directory_channel = self.directory_channel.0.clone();
             thread::spawn(move || {
                 let directory_results = task::block_on(directory_check());
@@ -203,6 +200,7 @@ impl App<'_> {
                     Err(_) => {}
                 }
             });
+            self.dc_started = true;
         }
         // main loop
         while !self.exit {
@@ -273,14 +271,14 @@ impl App<'_> {
                     Err(_) => {}
                 }
             }
-            if self.dc.need_dl {
-                let database_channel = self.download_channel.0.clone();
+            if self.dc.need_dl && !self.dl_started {
+                let database_channel = self.database_channel.0.clone();
                 // NOTE: it might seem like a waste to copy the whole database vector, but it
                 // should be None still - nothing has been loaded yet
                 let dc_clone = self.dc.clone();
-                tokio::spawn(async move {
+                thread::spawn(move || {
                     let database_results = task::block_on(dl_scryfall_latest(dc_clone));
-                    match database_channel.send(database_results).await {
+                    match database_channel.send(database_results) {
                         Ok(()) => {}
                         Err(_) => {}
                     }
@@ -288,10 +286,9 @@ impl App<'_> {
                 self.dl_started = true;
             }
             if self.dl_started && !self.dl_done {
-                self.debug_string += "waiting on download to finish...\n";
-                match self.download_channel.1.try_recv() {
+                match self.database_channel.1.try_recv() {
                     Ok(dc) => {
-                        self.debug_string += "download success!\n";
+                        self.debug_string += "received response from download thread!\n";
                         self.dc = dc;
                         self.dl_done = true;
                         self.dl_started = false;
@@ -300,7 +297,7 @@ impl App<'_> {
                     Err(_) => {}
                 }
             }
-            if self.dc.ready_load {
+            if self.dc.ready_load && !self.load_started {
                 let database_channel = self.database_channel.0.clone();
                 let dc_clone = self.dc.clone();
                 thread::spawn(move || {
@@ -317,7 +314,7 @@ impl App<'_> {
                     Ok(dc) => {
                         self.dc = dc;
                         self.load_done = true;
-                        self.load_started = true;
+                        self.load_started = false;
                         self.redraw = true;
                     }
                     Err(_) => {}

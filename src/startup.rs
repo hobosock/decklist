@@ -3,12 +3,13 @@ use std::{
     ffi::OsString,
     fs::{self, create_dir},
     io::Write,
+    time::Duration,
 };
 
 use chrono::{DateTime, Local};
 use directories_next::ProjectDirs;
-use reqwest::{Client, Method};
 use serde::Deserialize;
+use ureq::Agent;
 
 use crate::{
     config::DecklistConfig,
@@ -257,21 +258,19 @@ pub async fn dl_scryfall_latest(mut dc: DatabaseCheck) -> DatabaseCheck {
 async fn scryfall_bulk_request(
     mut data_path: OsString,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let scryfall_client = Client::new();
+    let config = Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(5)))
+        .build();
+    let scryfall_agent: Agent = config.into();
 
     // first request gets URI for latest data
-    let scryfall_request = scryfall_client
-        .request(
-            Method::GET,
-            "https://api.scryfall.com/bulk-data/oracle-cards",
-        )
+    let resp: ScryfallResponse = scryfall_agent
+        .get("https://api.scryfall.com/bulk-data/oracle-cards")
         .header("User-Agent", "decklistv0.1")
-        .header("Accept", "*/*");
-    let resp = scryfall_request
-        .send()
-        .await?
-        .json::<ScryfallResponse>()
-        .await?;
+        .header("Accept", "*/*")
+        .call()?
+        .body_mut()
+        .read_json::<ScryfallResponse>()?;
 
     // make filename from latest URI
     let uri = resp.download_uri.clone();
@@ -280,18 +279,22 @@ async fn scryfall_bulk_request(
     data_path.push(name);
 
     // second request downloads JSON file to user data directory
-    let download_request = scryfall_client
-        .request(Method::GET, uri)
+    let download_request = scryfall_agent
+        .get(uri)
         .header("User-Agent", "decklistv0.1")
-        .header("Accept", "application/file");
-    let dresp = download_request.send().await?.bytes().await?;
-    let mut file = std::fs::File::create(data_path)?;
-    file.write_all(&dresp)?;
+        .header("Accept", "application/file")
+        .call()?
+        .body_mut()
+        .with_config()
+        .limit(resp.size)
+        .read_to_string()?;
+    println!("{:?}", data_path);
+    fs::write(data_path, &download_request)?;
 
     Ok(name.to_string())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct ScryfallResponse {
     object: String,
     id: String,
@@ -300,7 +303,7 @@ struct ScryfallResponse {
     uri: String,
     name: String,
     description: String,
-    size: i64,
+    size: u64,
     download_uri: String,
     content_type: String,
     content_encoding: String,

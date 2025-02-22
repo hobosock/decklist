@@ -3,6 +3,7 @@ use std::{
     ffi::OsString,
     fs::{self, create_dir},
     io::Write,
+    path::PathBuf,
     time::Duration,
 };
 
@@ -38,6 +39,8 @@ pub struct DirectoryCheck {
     pub directory_exists: bool,
     pub data_directory_exists: bool,
     pub directory_status: String,
+    pub config_path: PathBuf,
+    pub data_path: PathBuf,
 }
 
 /// checks for existence of program directories that store config file/database/etc.
@@ -45,6 +48,8 @@ pub struct DirectoryCheck {
 pub async fn directory_check() -> DirectoryCheck {
     let directory_exists = directory_exist();
     let data_directory_exists = data_directory_exist();
+    let mut config_path = PathBuf::new();
+    let mut data_path = PathBuf::new();
     let mut directory_status =
         "Program directories does not exist.  Hit enter to create them now.".to_string();
     if directory_exists {
@@ -53,11 +58,15 @@ pub async fn directory_check() -> DirectoryCheck {
             "Directory found at {:?}",
             project_dir.config_dir().to_path_buf()
         );
+        config_path = project_dir.config_dir().to_owned();
+        data_path = project_dir.data_local_dir().to_owned();
     }
     DirectoryCheck {
         directory_exists,
         data_directory_exists,
         directory_status,
+        config_path,
+        data_path,
     }
 }
 
@@ -101,7 +110,7 @@ pub struct DatabaseCheck {
     pub database_exists: bool,
     pub database_status: String,
     pub database_cards: Option<Vec<ScryfallCard>>,
-    pub database_path: OsString,
+    pub database_path: PathBuf,
     pub filename: String,
     pub need_dl: bool,
     pub ready_load: bool,
@@ -113,7 +122,7 @@ impl Default for DatabaseCheck {
             database_exists: false,
             database_status: "Waiting on startup checks...".to_string(),
             database_cards: None,
-            database_path: OsString::new(),
+            database_path: PathBuf::new(),
             filename: String::new(),
             need_dl: false,
             ready_load: false,
@@ -122,46 +131,36 @@ impl Default for DatabaseCheck {
 }
 
 /// checks for existence of database file
-pub async fn database_check(project_dir: ProjectDirs, max_age: u64) -> DatabaseCheck {
+pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
     let mut need_download = false;
     let mut ready_load = false;
     let mut database_exists = false;
     let mut database_status =
-        "No config file to indicate database location.  Load file manually in [DATABASE] tab."
-            .to_string();
+        "Failed to find a valid database file.  Load file manually in [DATABASE] tab.".to_string();
     let database_cards = None;
-    let mut data_path = project_dir.data_local_dir().as_os_str().to_os_string();
     let mut filename = String::new();
-    match data_path.clone().into_string() {
-        Ok(s) => {
-            if let Some((fname, date)) = find_scryfall_database(s) {
-                // TODO: date magic here to get file age
-                let current_time: DateTime<Local> = Local::now();
-                let formatted_time = current_time.format("%Y%m%d%H%M%S").to_string();
-                let time_num = match formatted_time.parse::<u64>() {
-                    Ok(n) => n,
-                    Err(_) => 0,
-                };
-                if (time_num - date) > (max_age * 1000000) {
-                    // NOTE: HHMMSS place
-                    need_download = true;
-                    database_status = format!("Database file found, but it is older than {} days.  Downloading new file...", max_age);
-                    filename = fname; // NOTE: go ahead and load latest filename in case DL fails
-                } else {
-                    database_status = format!("Recent database file found: {}", fname.clone());
-                    filename = fname;
-                    ready_load = true;
-                }
-                database_exists = true;
-                data_path.push("/");
-            }
-        }
-        Err(_) => {
-            data_path.push("/");
+    if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
+        let current_time: DateTime<Local> = Local::now();
+        let formatted_time = current_time.format("%Y%m%d%H%M%S").to_string();
+        let time_num = match formatted_time.parse::<u64>() {
+            Ok(n) => n,
+            Err(_) => 0,
+        };
+        if (time_num - date) > (max_age * 1000000) {
+            // NOTE: HHMMSS place
             need_download = true;
-            database_status = "No database file found.  Downloading file...".to_string();
+            database_status = format!(
+                "Database file found, but it is older than {} days.  Downloading new file...",
+                max_age
+            );
+            filename = fname; // NOTE: go ahead and load latest filename in case DL fails
+        } else {
+            database_status = format!("Recent database file found: {}", fname.clone());
+            filename = fname;
+            ready_load = true;
         }
-    };
+        database_exists = true;
+    }
     DatabaseCheck {
         database_exists,
         database_status,
@@ -192,7 +191,7 @@ pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
 /// finds the latest Scryfall OracleCards database file in the program data directory
 /// returns the full file path as Some(String) if found
 /// returns None if no file exists
-fn find_scryfall_database(data_path: String) -> Option<(String, u64)> {
+fn find_scryfall_database(data_path: PathBuf) -> Option<(String, u64)> {
     let items = fs::read_dir(data_path)
         .expect("Scryfall database directory should exist if calling find_scryfall_database().");
     let mut options = Vec::new();
@@ -205,7 +204,8 @@ fn find_scryfall_database(data_path: String) -> Option<(String, u64)> {
                     let f_string = f_str.unwrap();
                     options.push(f_string.clone());
                     let sections: Vec<&str> = f_string.split("-").collect();
-                    match sections[2].trim().parse::<u64>() {
+                    let subsections: Vec<&str> = sections[2].split('.').collect(); // ######.json
+                    match subsections[0].trim().parse::<u64>() {
                         Ok(num) => dates.push(num),
                         Err(_) => dates.push(0),
                     }
@@ -214,11 +214,8 @@ fn find_scryfall_database(data_path: String) -> Option<(String, u64)> {
             Err(_) => {}
         }
     }
-    let result = match dates.iter().max() {
-        Some(position) => Some((
-            options[*position as usize].clone(),
-            dates[*position as usize],
-        )),
+    let result = match dates.iter().enumerate().max() {
+        Some((position, date)) => Some((options[position].clone(), *date)),
         None => None,
     };
     result
@@ -256,7 +253,7 @@ pub async fn dl_scryfall_latest(mut dc: DatabaseCheck) -> DatabaseCheck {
 
 /// makes http requests to get latest bulk data from Scryfall
 async fn scryfall_bulk_request(
-    mut data_path: OsString,
+    mut data_path: PathBuf,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let config = Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(5)))
@@ -288,7 +285,6 @@ async fn scryfall_bulk_request(
         .with_config()
         .limit(resp.size)
         .read_to_string()?;
-    println!("{:?}", data_path);
     fs::write(data_path, &download_request)?;
 
     Ok(name.to_string())

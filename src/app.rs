@@ -213,6 +213,7 @@ impl App<'_> {
                         self.data_directory_exist = directory_check.data_directory_exists;
                         self.directory_status = directory_check.directory_status;
                         self.redraw = true;
+                        self.dc.database_path = directory_check.data_path; // TODO: do config also
                     }
                     Err(_) => {}
                 }
@@ -242,11 +243,11 @@ impl App<'_> {
                 }
             }
             if self.data_directory_exist && !self.database_started && self.config_done {
-                let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
                 let database_channel = self.database_channel.0.clone();
                 let max_age = self.config.database_age_limit;
+                let dc_path = self.dc.database_path.clone();
                 thread::spawn(move || {
-                    let database_results = task::block_on(database_check(project_dir, max_age));
+                    let database_results = task::block_on(database_check(dc_path, max_age));
                     match database_channel.send(database_results) {
                         Ok(()) => {}
                         Err(_) => {}
@@ -263,6 +264,7 @@ impl App<'_> {
                         self.dc.database_cards = dc.database_cards;
                         self.dc.need_dl = dc.need_dl;
                         self.dc.ready_load = dc.ready_load;
+                        self.dc.filename = dc.filename;
                         self.collection_exist = false;
                         self.collection_status =
                             "Manually load in [COLLECTION] tab until feature is added.".to_string();

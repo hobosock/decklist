@@ -13,5 +13,6 @@ serde_json
 tokio
 tokio-util
 toml
+ureq
 
 Diacritics (no license given)

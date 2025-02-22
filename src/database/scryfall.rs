@@ -1,4 +1,4 @@
-use std::{error::Error, ffi::OsString, fs};
+use std::{error::Error, ffi::OsString, fs, path::PathBuf};
 
 use serde::Deserialize;
 
@@ -689,7 +689,7 @@ pub struct ScryfallPurchase {
 }
 
 /// reads provided JSON database file and produces a vector of ScryfallCard objects
-pub fn read_scryfall_database(path: &OsString) -> Result<Vec<ScryfallCard>, Box<dyn Error>> {
+pub fn read_scryfall_database(path: &PathBuf) -> Result<Vec<ScryfallCard>, Box<dyn Error>> {
     let file_text = fs::read_to_string(path)?;
     let test: Result<Vec<ScryfallCard>, serde_json::Error> = serde_json::from_str(&file_text);
     Ok(test?)

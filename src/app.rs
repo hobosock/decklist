@@ -129,6 +129,7 @@ pub struct App<'a> {
         std::sync::mpsc::Sender<String>,
         std::sync::mpsc::Receiver<String>,
     ),
+    pub database_ok: bool, // flag to indicate if database_status should be red/green
 }
 
 impl Default for App<'_> {
@@ -182,6 +183,7 @@ impl Default for App<'_> {
             missing_lines: Vec::new(),
             clipboard: Clipboard::new(),
             debug_channel: std::sync::mpsc::channel(),
+            database_ok: false,
         }
     }
 }
@@ -253,6 +255,9 @@ impl App<'_> {
                     self.dc.need_dl = dc.need_dl;
                     self.dc.ready_load = dc.ready_load;
                     self.dc.filename = dc.filename;
+                    if dc.database_exists {
+                        self.database_ok = true;
+                    }
                     self.collection_exist = false;
                     self.collection_status =
                         "Manually load in [COLLECTION] tab until feature is added.".to_string();
@@ -281,6 +286,7 @@ impl App<'_> {
                 if let Ok(dc) = self.database_channel.1.try_recv() {
                     self.debug_string += "received response from download thread!\n";
                     self.dc = dc;
+                    self.database_ok = self.dc.ready_load; // status goes red if DL failed or
                     self.dl_done = true;
                     self.dl_started = false;
                     self.redraw = true
@@ -303,6 +309,11 @@ impl App<'_> {
                     self.dc = dc;
                     self.load_done = true;
                     self.load_started = false;
+                    if self.dc.database_cards.is_some() {
+                        self.database_ok = true;
+                    } else {
+                        self.database_ok = false;
+                    }
                     self.redraw = true;
                 }
             }

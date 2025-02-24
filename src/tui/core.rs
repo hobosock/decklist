@@ -184,7 +184,7 @@ fn draw_welcome_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
     } else {
         app.config_status.clone().red()
     };
-    let database_status_line = if app.dc.database_exists {
+    let database_status_line = if app.database_ok {
         app.dc.database_status.clone().green()
     } else {
         app.dc.database_status.clone().red()

@@ -1,8 +1,8 @@
 use crate::{
     collection::check_missing,
     startup::{
-        config_check, database_check, directory_check, dl_scryfall_latest, load_database_file,
-        ConfigCheck, DatabaseCheck, DirectoryCheck,
+        config_check, database_check, database_management, directory_check, dl_scryfall_latest,
+        load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
     },
 };
 use arboard::Clipboard;
@@ -125,6 +125,10 @@ pub struct App<'a> {
     pub loading_decklist: bool,
     pub missing_lines: Vec<Line<'a>>,
     pub clipboard: Result<Clipboard, arboard::Error>,
+    pub debug_channel: (
+        std::sync::mpsc::Sender<String>,
+        std::sync::mpsc::Receiver<String>,
+    ),
 }
 
 impl Default for App<'_> {
@@ -177,6 +181,7 @@ impl Default for App<'_> {
             loading_decklist: false,
             missing_lines: Vec::new(),
             clipboard: Clipboard::new(),
+            debug_channel: std::sync::mpsc::channel(),
         }
     }
 }
@@ -259,9 +264,16 @@ impl App<'_> {
                 // NOTE: it might seem like a waste to copy the whole database vector, but it
                 // should be None still - nothing has been loaded yet
                 let dc_clone = self.dc.clone();
+                let debug_channel = self.debug_channel.0.clone();
+                let data_path = self.dc.database_path.clone();
                 thread::spawn(move || {
                     let database_results = task::block_on(dl_scryfall_latest(dc_clone));
+                    let delete_str = match database_management(data_path) {
+                        Ok(()) => "File deleted successfully.\n".to_string(),
+                        Err(e) => e.to_string(),
+                    };
                     if let Ok(()) = database_channel.send(database_results) {};
+                    if let Ok(()) = debug_channel.send(delete_str) {};
                 });
                 self.dl_started = true;
             }
@@ -272,6 +284,9 @@ impl App<'_> {
                     self.dl_done = true;
                     self.dl_started = false;
                     self.redraw = true
+                }
+                if let Ok(s) = self.debug_channel.1.try_recv() {
+                    self.debug_string += &s;
                 }
             }
             if self.dc.ready_load && !self.load_started {

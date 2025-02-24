@@ -1,6 +1,7 @@
 use std::{
     error::Error,
     fs::{self, create_dir},
+    io::ErrorKind,
     path::PathBuf,
     time::Duration,
 };
@@ -206,11 +207,11 @@ fn find_scryfall_database(data_path: PathBuf) -> Option<(String, u64)> {
             }
         }
     }
-    dates
-        .iter()
-        .enumerate()
-        .max()
-        .map(|(position, date)| (options[position].clone(), *date))
+    if let Some((index, date)) = dates.iter().enumerate().max_by_key(|&(_, &value)| value) {
+        Some((options[index].clone(), *date))
+    } else {
+        None
+    }
 }
 
 /// downloads latest OracleCards bulk data from Scryfall
@@ -357,4 +358,43 @@ pub fn create_config() -> Result<(), Box<dyn Error>> {
     config_path.push("/config.toml");
     let default_text = toml::to_string(&DecklistConfig::default())?;
     Ok(fs::write(config_path, default_text)?)
+}
+
+/// checks for more than 3 database files in data directory to preserve space
+/// deletes oldest file if there are more than 3
+/// only applies to standard Scryfall names, user named/renamed files probably won't work
+pub fn database_management(data_path: PathBuf) -> Result<(), std::io::Error> {
+    let files = fs::read_dir(data_path.clone())
+        .expect("Scryfall database directory should exist if calling database_management().");
+    let mut names = Vec::new();
+    let mut dates = Vec::new();
+    let mut result = Err(std::io::Error::new(
+        ErrorKind::Other,
+        "Failure in fn database_management().",
+    ));
+    for file in files {
+        if let Ok(f) = file {
+            if let Ok(f_str) = f.file_name().into_string() {
+                if f_str.contains("oracle-cards") {
+                    names.push(f_str.clone());
+                    let sections: Vec<&str> = f_str.split("-").collect();
+                    let subsections: Vec<&str> = sections[2].split('.').collect(); // ######.json
+                    match subsections[0].trim().parse::<u64>() {
+                        Ok(num) => dates.push(num),
+                        Err(_) => dates.push(0),
+                    }
+                }
+            }
+        }
+    }
+    if names.len() > 3 {
+        if let Some((index, _date_min)) = dates.iter().enumerate().min_by_key(|&(_, &value)| value)
+        {
+            let delete_name = names[index].clone();
+            let mut delete_path = data_path.clone();
+            delete_path.push(delete_name);
+            result = fs::remove_file(delete_path);
+        }
+    }
+    result
 }

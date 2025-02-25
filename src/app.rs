@@ -130,6 +130,8 @@ pub struct App<'a> {
         std::sync::mpsc::Receiver<String>,
     ),
     pub database_ok: bool, // flag to indicate if database_status should be red/green
+    pub man_database_file: Option<File>,
+    pub man_database_file_name: Option<String>,
 }
 
 impl Default for App<'_> {
@@ -184,6 +186,8 @@ impl Default for App<'_> {
             clipboard: Clipboard::new(),
             debug_channel: std::sync::mpsc::channel(),
             database_ok: false,
+            man_database_file: None,
+            man_database_file_name: None,
         }
     }
 }
@@ -195,6 +199,7 @@ impl App<'_> {
         terminal: &mut Tui,
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
+        database_explorer: &mut FileExplorer,
     ) -> io::Result<()> {
         // start new threads to run start up processes
         if !self.startup && !self.dc_started {
@@ -296,6 +301,11 @@ impl App<'_> {
                 }
             }
             if self.dc.ready_load && !self.load_started {
+                self.debug_string += &format!(
+                    "Loading a database file : {:?}{}\n",
+                    self.dc.database_path.display(),
+                    self.dc.filename
+                );
                 let database_channel = self.database_channel.0.clone();
                 let dc_clone = self.dc.clone();
                 thread::spawn(move || {
@@ -368,10 +378,12 @@ impl App<'_> {
                 }
             }
             if self.redraw {
-                terminal.draw(|frame| self.render_frame(frame, explorer, explorer2))?;
+                terminal.draw(|frame| {
+                    self.render_frame(frame, explorer, explorer2, database_explorer)
+                })?;
                 self.redraw = false;
             }
-            self.handle_events(explorer, explorer2)?;
+            self.handle_events(explorer, explorer2, database_explorer)?;
         }
         Ok(())
     }
@@ -382,8 +394,9 @@ impl App<'_> {
         frame: &mut Frame,
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
+        database_explorer: &mut FileExplorer,
     ) {
-        ui(frame, self, explorer, explorer2);
+        ui(frame, self, explorer, explorer2, database_explorer);
     }
 
     /// updates application state based on user input
@@ -391,6 +404,7 @@ impl App<'_> {
         &mut self,
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
+        database_explorer: &mut FileExplorer,
     ) -> io::Result<()> {
         if event::poll(Duration::from_millis(100))? {
             let event = event::read()?;
@@ -406,6 +420,9 @@ impl App<'_> {
             }
             if self.active_tab == MenuTabs::Deck && self.decklist.is_none() {
                 explorer2.handle(&event)?;
+            }
+            if self.active_tab == MenuTabs::Database {
+                database_explorer.handle(&event)?;
             }
         }
         Ok(())
@@ -521,6 +538,18 @@ fn c_press(app: &mut App) {
 
 fn s_press(app: &mut App) {
     match app.active_tab {
+        MenuTabs::Database => {
+            if let Some(file) = &app.man_database_file {
+                if let Some(path_string) = file.path().parent() {
+                    app.dc.database_path = path_string.to_path_buf();
+                    app.dc.filename = file.name().to_string();
+                    // this should trigger the regular database loading process
+                    app.dc.ready_load = true;
+                    app.load_started = false;
+                    app.load_done = false;
+                }
+            }
+        }
         MenuTabs::Collection => {
             if app.collection_file.is_some() {
                 let path_str = app.collection_file.as_ref().unwrap().path().to_str();

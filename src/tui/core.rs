@@ -53,6 +53,7 @@ pub fn ui(
     app: &mut App,
     explorer: &mut FileExplorer,
     explorer2: &mut FileExplorer,
+    database_explorer: &mut FileExplorer,
 ) {
     // split area into 3 chunks (tabs/main/keys)
     let chunks = Layout::default()
@@ -95,12 +96,25 @@ pub fn ui(
             instructions_text = Text::from(vec![Line::from(vec![
                 "<Q>".yellow().bold(),
                 " Quit ".into(),
-                "<C>".yellow().bold(),
-                " Load Collection ".into(),
-                "<D>".yellow().bold(),
-                " Download Database ".into(),
+                "<1-6>".yellow().bold(),
+                " Change Tabs ".into(),
             ])]);
             draw_welcome_main(app, frame, chunks[1], main_block);
+        }
+        MenuTabs::Database => {
+            instructions_text = Text::from(vec![Line::from(vec![
+                "<Q>".yellow().bold(),
+                " Quit ".into(),
+                "<S>".yellow().bold(),
+                " Load file ".into(),
+                "<Up/Down>".yellow().bold(),
+                " Navigate ".into(),
+                "<Left/Backspace>".yellow().bold(),
+                " Exit Directory ".into(),
+                "<Right/Enter>".yellow().bold(),
+                " Down Directory ".into(),
+            ])]);
+            draw_database_main(app, frame, chunks[1], main_block, database_explorer);
         }
         MenuTabs::Collection => {
             instructions_text = Text::from(vec![Line::from(vec![
@@ -208,6 +222,27 @@ fn draw_welcome_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
     .centered()
     .block(main_block);
     frame.render_widget(status_paragraph, chunk);
+}
+
+/// draws the main block of the Database tab
+fn draw_database_main(
+    app: &mut App,
+    frame: &mut Frame,
+    chunk: Rect,
+    main_block: Block,
+    explorer: &mut FileExplorer,
+) {
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(2)])
+        .split(main_block.inner(chunk));
+    let file_paragraph = app.dc.database_status.clone();
+    frame.render_widget(main_block, chunk);
+    frame.render_widget(file_paragraph, sections[0]);
+    frame.render_widget(&explorer.widget(), sections[1]);
+    let file = explorer.current();
+    app.man_database_file_name = Some(file.name().to_string());
+    app.man_database_file = Some(file.clone());
 }
 
 /// draws the main block of the Collection tab

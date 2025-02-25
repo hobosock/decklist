@@ -176,8 +176,9 @@ pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
     match read_scryfall_database(&data_path) {
         Ok(cards) => {
             dc.database_exists = true;
-            dc.database_status = "Loaded cards".to_string();
+            dc.database_status = format!("Loaded cards from: {}", dc.filename);
             dc.database_cards = Some(cards);
+            dc.ready_load = false; // file loaded successfully, don't need to do again
         }
         Err(e) => dc.database_status = e.to_string(),
     }

@@ -306,12 +306,14 @@ impl App<'_> {
                     self.dc.database_path.display(),
                     self.dc.filename
                 );
+                self.dc.database_status = format!("Loading {} ...", self.dc.filename);
                 let database_channel = self.database_channel.0.clone();
                 let dc_clone = self.dc.clone();
                 thread::spawn(move || {
                     let database_results = task::block_on(load_database_file(dc_clone));
                     if let Ok(()) = database_channel.send(database_results) {};
                 });
+                self.dc.ready_load = false;
                 self.load_started = true;
             }
             if self.load_started && !self.load_done {

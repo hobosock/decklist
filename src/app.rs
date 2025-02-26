@@ -1,8 +1,8 @@
 use crate::{
     collection::check_missing,
     startup::{
-        config_check, database_check, directory_check, dl_scryfall_latest, load_database_file,
-        ConfigCheck, DatabaseCheck, DirectoryCheck,
+        config_check, database_check, database_management, directory_check, dl_scryfall_latest,
+        load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
     },
 };
 use arboard::Clipboard;
@@ -125,6 +125,13 @@ pub struct App<'a> {
     pub loading_decklist: bool,
     pub missing_lines: Vec<Line<'a>>,
     pub clipboard: Result<Clipboard, arboard::Error>,
+    pub debug_channel: (
+        std::sync::mpsc::Sender<String>,
+        std::sync::mpsc::Receiver<String>,
+    ),
+    pub database_ok: bool, // flag to indicate if database_status should be red/green
+    pub man_database_file: Option<File>,
+    pub man_database_file_name: Option<String>,
 }
 
 impl Default for App<'_> {
@@ -177,6 +184,10 @@ impl Default for App<'_> {
             loading_decklist: false,
             missing_lines: Vec::new(),
             clipboard: Clipboard::new(),
+            debug_channel: std::sync::mpsc::channel(),
+            database_ok: false,
+            man_database_file: None,
+            man_database_file_name: None,
         }
     }
 }
@@ -188,6 +199,7 @@ impl App<'_> {
         terminal: &mut Tui,
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
+        database_explorer: &mut FileExplorer,
     ) -> io::Result<()> {
         // start new threads to run start up processes
         if !self.startup && !self.dc_started {
@@ -248,6 +260,9 @@ impl App<'_> {
                     self.dc.need_dl = dc.need_dl;
                     self.dc.ready_load = dc.ready_load;
                     self.dc.filename = dc.filename;
+                    if dc.database_exists {
+                        self.database_ok = true;
+                    }
                     self.collection_exist = false;
                     self.collection_status =
                         "Manually load in [COLLECTION] tab until feature is added.".to_string();
@@ -259,9 +274,16 @@ impl App<'_> {
                 // NOTE: it might seem like a waste to copy the whole database vector, but it
                 // should be None still - nothing has been loaded yet
                 let dc_clone = self.dc.clone();
+                let debug_channel = self.debug_channel.0.clone();
+                let data_path = self.dc.database_path.clone();
                 thread::spawn(move || {
                     let database_results = task::block_on(dl_scryfall_latest(dc_clone));
+                    let delete_str = match database_management(data_path) {
+                        Ok(()) => "File deleted successfully.\n".to_string(),
+                        Err(e) => e.to_string(),
+                    };
                     if let Ok(()) = database_channel.send(database_results) {};
+                    if let Ok(()) = debug_channel.send(delete_str) {};
                 });
                 self.dl_started = true;
             }
@@ -269,18 +291,29 @@ impl App<'_> {
                 if let Ok(dc) = self.database_channel.1.try_recv() {
                     self.debug_string += "received response from download thread!\n";
                     self.dc = dc;
+                    self.database_ok = self.dc.ready_load; // status goes red if DL failed or
                     self.dl_done = true;
                     self.dl_started = false;
                     self.redraw = true
                 }
+                if let Ok(s) = self.debug_channel.1.try_recv() {
+                    self.debug_string += &s;
+                }
             }
             if self.dc.ready_load && !self.load_started {
+                self.debug_string += &format!(
+                    "Loading a database file : {:?}{}\n",
+                    self.dc.database_path.display(),
+                    self.dc.filename
+                );
+                self.dc.database_status = format!("Loading {} ...", self.dc.filename);
                 let database_channel = self.database_channel.0.clone();
                 let dc_clone = self.dc.clone();
                 thread::spawn(move || {
                     let database_results = task::block_on(load_database_file(dc_clone));
                     if let Ok(()) = database_channel.send(database_results) {};
                 });
+                self.dc.ready_load = false;
                 self.load_started = true;
             }
             if self.load_started && !self.load_done {
@@ -288,6 +321,11 @@ impl App<'_> {
                     self.dc = dc;
                     self.load_done = true;
                     self.load_started = false;
+                    if self.dc.database_cards.is_some() {
+                        self.database_ok = true;
+                    } else {
+                        self.database_ok = false;
+                    }
                     self.redraw = true;
                 }
             }
@@ -342,10 +380,12 @@ impl App<'_> {
                 }
             }
             if self.redraw {
-                terminal.draw(|frame| self.render_frame(frame, explorer, explorer2))?;
+                terminal.draw(|frame| {
+                    self.render_frame(frame, explorer, explorer2, database_explorer)
+                })?;
                 self.redraw = false;
             }
-            self.handle_events(explorer, explorer2)?;
+            self.handle_events(explorer, explorer2, database_explorer)?;
         }
         Ok(())
     }
@@ -356,8 +396,9 @@ impl App<'_> {
         frame: &mut Frame,
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
+        database_explorer: &mut FileExplorer,
     ) {
-        ui(frame, self, explorer, explorer2);
+        ui(frame, self, explorer, explorer2, database_explorer);
     }
 
     /// updates application state based on user input
@@ -365,6 +406,7 @@ impl App<'_> {
         &mut self,
         explorer: &mut FileExplorer,
         explorer2: &mut FileExplorer,
+        database_explorer: &mut FileExplorer,
     ) -> io::Result<()> {
         if event::poll(Duration::from_millis(100))? {
             let event = event::read()?;
@@ -380,6 +422,9 @@ impl App<'_> {
             }
             if self.active_tab == MenuTabs::Deck && self.decklist.is_none() {
                 explorer2.handle(&event)?;
+            }
+            if self.active_tab == MenuTabs::Database {
+                database_explorer.handle(&event)?;
             }
         }
         Ok(())
@@ -495,6 +540,18 @@ fn c_press(app: &mut App) {
 
 fn s_press(app: &mut App) {
     match app.active_tab {
+        MenuTabs::Database => {
+            if let Some(file) = &app.man_database_file {
+                if let Some(path_string) = file.path().parent() {
+                    app.dc.database_path = path_string.to_path_buf();
+                    app.dc.filename = file.name().to_string();
+                    // this should trigger the regular database loading process
+                    app.dc.ready_load = true;
+                    app.load_started = false;
+                    app.load_done = false;
+                }
+            }
+        }
         MenuTabs::Collection => {
             if app.collection_file.is_some() {
                 let path_str = app.collection_file.as_ref().unwrap().path().to_str();

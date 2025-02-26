@@ -1,29 +1,30 @@
-use std::ops::Deref;
+use std::path::Path;
 
 use directories_next::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
 /// app config settings
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DecklistConfig {
-    pub database_path: String,
-    pub database_age_limit: u64,
-    pub collection_path: String,
+    pub use_database: bool, // set to false to never download or auto load a database file
+    pub database_path: Box<Path>, // folder containing downloaded database files
+    pub database_age_limit: u64, // age in days before a new database file is downloaded
+    pub database_num: u64,  // number of database files to keep around
+    pub collection_path: Option<Box<Path>>, // path to latest collection file
 }
 
 impl Default for DecklistConfig {
     fn default() -> Self {
-        // TODO: error proof here - I think this just generates a blank
-        let project_dir = ProjectDirs::from("", "", "decklist")
-            .unwrap()
+        let data_dir = ProjectDirs::from("", "", "decklist")
+            .expect("Failed to create a project directory name.  IDK what to do here.")
             .data_local_dir()
-            .to_string_lossy()
-            .deref()
-            .to_string(); // LOL
+            .to_path_buf();
         Self {
-            database_path: project_dir.clone(),
+            use_database: true,
+            database_path: data_dir.clone().into(),
             database_age_limit: 7,
-            collection_path: project_dir,
+            database_num: 3,
+            collection_path: None,
         }
     }
 }

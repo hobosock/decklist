@@ -238,8 +238,51 @@ impl App<'_> {
                     self.config_done = true;
                     self.config_exist = cc.config_exists;
                     self.config_status = cc.config_status;
+                    self.config = cc.config.clone();
+                    // take care of use_database = false
+                    if !cc.config.use_database {
+                        self.database_started = true;
+                        self.database_done = true;
+                        self.dc.need_dl = false;
+                        self.dc.ready_load = false;
+                    }
                     self.redraw = true;
                 }
+            }
+            if self.config_done
+                && self.config.collection_path.is_some()
+                && self.collection.is_none()
+            {
+                // if config has a path to a config and one isn't already loaded, try and load
+                // file specified in config
+                let collection_channel = self.collection_channel.0.clone();
+                let collection_path = self
+                    .config
+                    .collection_path
+                    .clone()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+                self.loading_collection = true;
+                thread::spawn(move || {
+                    let read_result =
+                        task::block_on(read_moxfield_collection(collection_path.clone()));
+                    let mut message = CollectionMessage::default();
+                    match read_result {
+                        Ok(collection) => {
+                            message.debug += &format!("read {} successfully\n", collection_path);
+                            message.collection = Some(collection);
+                            message.status =
+                                format!("Collection loaded successfully: {}", collection_path);
+                            message.exist = true;
+                        }
+                        Err(e) => {
+                            message.status = e.to_string();
+                            message.debug += &format!("Error reading CSV: {}", e);
+                        }
+                    }
+                    if let Ok(()) = collection_channel.send(message) {};
+                });
             }
             if self.data_directory_exist && !self.database_started && self.config_done {
                 let database_channel = self.database_channel.0.clone();
@@ -352,7 +395,9 @@ impl App<'_> {
                                 .push(Line::from(format!("{}{}", card, missing_str)));
                         }
                     }
+                    self.loading_collection = false;
                     self.redraw = true;
+                    // TODO: prompt user to save collection path to config
                 }
             }
             if self.loading_decklist {
@@ -376,6 +421,7 @@ impl App<'_> {
                                 .push(Line::from(format!("{}{}", card, missing_str)));
                         }
                     }
+                    self.loading_decklist = false;
                     self.redraw = true;
                 }
             }

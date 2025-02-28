@@ -245,6 +245,8 @@ impl App<'_> {
                     self.config = cc.config.clone();
                     // take care of use_database = false
                     if !cc.config.use_database {
+                        self.dc.database_status =
+                            "Config set to not use database files.".to_string();
                         self.database_started = true;
                         self.database_done = true;
                         self.dc.need_dl = false;

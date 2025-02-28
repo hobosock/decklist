@@ -258,16 +258,19 @@ fn draw_collection_main(
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(2)])
         .split(main_block.inner(chunk));
-    if app.collection.is_none() {
-        // TODO: cleanup dead branch
-        // app.collection_status = "Please select a collection file from Moxfield.".to_string();
-    } else {
+    if app.collection.is_some() && app.collection_file_name.is_some() {
         app.collection_status = format!(
             "Collection loaded successfully.  Using {}",
             app.collection_file_name.as_ref().unwrap() // NOTE: should exist if you get to this branch
         );
     }
-    let file_paragraph = Paragraph::new(app.collection_status.clone()).wrap(Wrap { trim: true });
+    let file_paragraph = if app.prompt_config_update {
+        let words = app.collection_status.clone()
+            + "  Press C to update config to auto load this collection file.";
+        Paragraph::new(words).wrap(Wrap { trim: true })
+    } else {
+        Paragraph::new(app.collection_status.clone()).wrap(Wrap { trim: true })
+    };
     frame.render_widget(main_block, chunk);
     frame.render_widget(file_paragraph, sections[0]);
     if app.collection.is_some() {

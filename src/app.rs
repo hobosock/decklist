@@ -329,9 +329,10 @@ impl App<'_> {
                 let dc_clone = self.dc.clone();
                 let debug_channel = self.debug_channel.0.clone();
                 let data_path = self.dc.database_path.clone();
+                let max_num = self.config.database_num;
                 thread::spawn(move || {
                     let database_results = task::block_on(dl_scryfall_latest(dc_clone));
-                    let delete_str = match database_management(data_path) {
+                    let delete_str = match database_management(data_path, max_num) {
                         Ok(()) => "File deleted successfully.\n".to_string(),
                         Err(e) => e.to_string(),
                     };

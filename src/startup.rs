@@ -369,7 +369,7 @@ pub fn create_config() -> Result<(), Box<dyn Error>> {
 /// checks for more than 3 database files in data directory to preserve space
 /// deletes oldest file if there are more than 3
 /// only applies to standard Scryfall names, user named/renamed files probably won't work
-pub fn database_management(data_path: PathBuf) -> Result<(), std::io::Error> {
+pub fn database_management(data_path: PathBuf, max_num: u64) -> Result<(), std::io::Error> {
     let files = fs::read_dir(data_path.clone())
         .expect("Scryfall database directory should exist if calling database_management().");
     let mut names = Vec::new();
@@ -393,7 +393,7 @@ pub fn database_management(data_path: PathBuf) -> Result<(), std::io::Error> {
             }
         }
     }
-    if names.len() > 3 {
+    if names.len() > max_num as usize {
         if let Some((index, _date_min)) = dates.iter().enumerate().min_by_key(|&(_, &value)| value)
         {
             let delete_name = names[index].clone();

@@ -8,7 +8,7 @@ use crate::{
 use arboard::Clipboard;
 use async_std::task;
 use directories_next::ProjectDirs;
-use std::{io, thread, time::Duration};
+use std::{fs, io, thread, time::Duration};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{text::Line, widgets::ScrollbarState, Frame};
@@ -35,6 +35,7 @@ pub struct CollectionMessage {
     pub collection: Option<Vec<CollectionCard>>,
     pub status: String,
     pub exist: bool,
+    pub filename: Option<String>,
 }
 
 impl Default for CollectionMessage {
@@ -44,6 +45,7 @@ impl Default for CollectionMessage {
             collection: None,
             status: String::new(),
             exist: false,
+            filename: None,
         }
     }
 }
@@ -132,6 +134,7 @@ pub struct App<'a> {
     pub database_ok: bool, // flag to indicate if database_status should be red/green
     pub man_database_file: Option<File>,
     pub man_database_file_name: Option<String>,
+    pub prompt_config_update: bool,
 }
 
 impl Default for App<'_> {
@@ -188,6 +191,7 @@ impl Default for App<'_> {
             database_ok: false,
             man_database_file: None,
             man_database_file_name: None,
+            prompt_config_update: false,
         }
     }
 }
@@ -249,11 +253,17 @@ impl App<'_> {
                     self.redraw = true;
                 }
             }
+            // update collection status if no collection file specified in config
+            if self.config_done && !self.collection_exist {
+                self.collection_status =
+                    "No collection file specified in config.  Load manually in [COLLECTION] tab."
+                        .to_string();
+            }
             if self.config_done
                 && self.config.collection_path.is_some()
                 && self.collection.is_none()
             {
-                // if config has a path to a config and one isn't already loaded, try and load
+                // if config has a path to a collection and one isn't already loaded, try and load
                 // file specified in config
                 let collection_channel = self.collection_channel.0.clone();
                 let collection_path = self
@@ -275,6 +285,7 @@ impl App<'_> {
                             message.status =
                                 format!("Collection loaded successfully: {}", collection_path);
                             message.exist = true;
+                            message.filename = Some(collection_path);
                         }
                         Err(e) => {
                             message.status = e.to_string();
@@ -306,9 +317,6 @@ impl App<'_> {
                     if dc.database_exists {
                         self.database_ok = true;
                     }
-                    self.collection_exist = false;
-                    self.collection_status =
-                        "Manually load in [COLLECTION] tab until feature is added.".to_string();
                     self.redraw = true;
                 }
             }
@@ -378,6 +386,7 @@ impl App<'_> {
                     self.collection = msg.collection;
                     self.collection_status = msg.status;
                     self.collection_exist = msg.exist;
+                    self.collection_file_name = msg.filename;
                     self.loading_collection = false;
                     if self.collection.is_some() && self.decklist.is_some() {
                         self.missing_cards = find_missing_cards(
@@ -397,7 +406,8 @@ impl App<'_> {
                     }
                     self.loading_collection = false;
                     self.redraw = true;
-                    // TODO: prompt user to save collection path to config
+                    // prompt user to save collection path to config
+                    self.prompt_config_update = true;
                 }
             }
             if self.loading_decklist {
@@ -556,6 +566,35 @@ fn c_press(app: &mut App) {
                 }
             }
         }
+        MenuTabs::Collection => {
+            if app.prompt_config_update
+                && app.collection_exist
+                && app.collection.is_some()
+                && app.collection_file.is_some()
+            {
+                app.config.collection_path = Some(
+                    app.collection_file
+                        .as_ref()
+                        .unwrap()
+                        .path()
+                        .to_path_buf()
+                        .into(),
+                );
+                let mut config_path = ProjectDirs::from("", "", "decklist")
+                    .expect("Should be able to make a config directory in fn c_press().")
+                    .config_dir()
+                    .to_path_buf();
+                config_path.push("config.toml");
+                if let Ok(file_text) = toml::to_string(&app.config) {
+                    match fs::write(config_path, file_text) {
+                        Ok(()) => app.debug_string += "Updated config successfully.\n",
+                        Err(e) => app.debug_string += &format!("Config update failed: {}\n", e),
+                    }
+                } else {
+                    app.debug_string += "Failed to convert config struct to TOML text.\n";
+                }
+            }
+        }
         MenuTabs::Missing => {
             if app.missing_cards.is_some() {
                 let mut clipboard_string = String::new();
@@ -616,6 +655,7 @@ fn s_press(app: &mut App) {
                                 message.status =
                                     format!("Collection loaded successfully: {}", path_string);
                                 message.exist = true;
+                                message.filename = Some(path_string);
                             }
                             Err(e) => {
                                 message.status = e.to_string();
@@ -717,6 +757,8 @@ fn esc_press(app: &mut App) {
     match app.active_tab {
         MenuTabs::Collection => {
             app.collection = None;
+            // NOTE: prevents autoloading when manually selecting a file
+            app.config.collection_path = None;
             app.collection_exist = false;
         }
         MenuTabs::Deck => {

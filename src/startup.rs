@@ -130,19 +130,20 @@ impl Default for DatabaseCheck {
 }
 
 /// checks for existence of database file
+/// if none are found, prompt to download a new file
 pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
     let mut need_download = false;
     let mut ready_load = false;
     let mut database_exists = false;
-    let mut database_status =
-        "Failed to find a valid database file.  Load file manually in [DATABASE] tab.".to_string();
+    let database_status;
     let database_cards = None;
     let mut filename = String::new();
     if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
         let current_time: DateTime<Local> = Local::now();
         let formatted_time = current_time.format("%Y%m%d%H%M%S").to_string();
         let time_num = formatted_time.parse::<u64>().unwrap_or(0);
-        if (time_num - date) > (max_age * 1000000) {
+        // NOTE: quick protection against subtract with overflow if file was downloaded same day
+        if date < time_num && (time_num - date) > (max_age * 1000000) {
             // NOTE: HHMMSS place
             need_download = true;
             database_status = format!(
@@ -156,6 +157,10 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
             ready_load = true;
         }
         database_exists = true;
+    } else {
+        // no file found, download
+        database_status = "No file found, will download latest from Scryfall.".to_string();
+        need_download = true;
     }
     DatabaseCheck {
         database_exists,

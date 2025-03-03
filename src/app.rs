@@ -520,9 +520,13 @@ impl App<'_> {
 fn enter_press(app: &mut App) {
     match app.active_tab {
         MenuTabs::Welcome => {
+            // TODO: I think the program can get stuck here if creating one directory fails but the
+            // other succeeds - probably need to track each one of these separately
             if !app.directory_exist {
+                app.debug_string += "config directory does not exist, attempting to create...\n";
                 match create_directory() {
                     Ok(()) => {
+                        app.debug_string += "create_directory() succeeded\n";
                         let ok_msg = match app.os {
                             SupportedOS::Linux => "Directory created at ~/.config/decklist",
                             SupportedOS::Windows => "directory created", // TODO: update
@@ -532,10 +536,14 @@ fn enter_press(app: &mut App) {
                         app.directory_status = ok_msg.to_string();
                         app.directory_exist = true;
                     }
-                    Err(e) => app.directory_status = e.to_string(),
+                    Err(e) => {
+                        app.debug_string += &format!("create_directory() failed: {}", e);
+                        app.directory_status = e.to_string();
+                    }
                 }
             }
             if !app.data_directory_exist {
+                app.debug_string += "data directory does not exist, attempting to create...\n";
                 match create_data_directory() {
                     Ok(()) => {
                         app.debug_string += "create_data_directory() succeeded\n";

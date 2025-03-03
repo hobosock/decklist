@@ -353,7 +353,10 @@ pub fn create_directory() -> Result<(), std::io::Error> {
 
 /// creates data directory if it doesn't exist
 pub fn create_data_directory() -> Result<(), std::io::Error> {
-    let mut result = Err(std::io::Error::last_os_error());
+    let mut result = Err(std::io::Error::new(
+        ErrorKind::Other,
+        "fn create_data_directory() default",
+    ));
     if let Some(data_dir) = ProjectDirs::from("", "", "decklist") {
         let path = data_dir.data_local_dir();
         result = create_dir(path);

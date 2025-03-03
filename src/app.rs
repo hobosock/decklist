@@ -538,9 +538,10 @@ fn enter_press(app: &mut App) {
             if !app.data_directory_exist {
                 match create_data_directory() {
                     Ok(()) => {
+                        app.debug_string += "create_data_directory() succeeded\n";
                         app.data_directory_exist = true;
-                    } // TODO: message?
-                    Err(_e) => {}
+                    }
+                    Err(e) => app.debug_string += &format!("create_data_directory() failed: {}", e),
                 }
             }
         }

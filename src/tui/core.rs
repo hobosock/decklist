@@ -266,7 +266,7 @@ fn draw_collection_main(
     }
     let file_paragraph = if app.prompt_config_update {
         let words = app.collection_status.clone()
-            + "  Press C to update config to auto load this collection file.";
+            + "\nPress C to update config to auto load this collection file.";
         Paragraph::new(words).wrap(Wrap { trim: true })
     } else {
         Paragraph::new(app.collection_status.clone()).wrap(Wrap { trim: true })

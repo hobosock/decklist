@@ -352,7 +352,7 @@ pub fn create_directory() -> Result<(), std::io::Error> {
 }
 
 /// creates data directory if it doesn't exist
-pub fn create_data_directory() -> Result<(), std::io::Error> {
+pub fn create_data_directory() -> Result<PathBuf, std::io::Error> {
     let mut result = Err(std::io::Error::new(
         ErrorKind::Other,
         "fn create_data_directory() default",
@@ -362,14 +362,17 @@ pub fn create_data_directory() -> Result<(), std::io::Error> {
         // try to create config directory, then try to create parent directory first if it fails
         // seems necessary for Windows
         match create_dir(path) {
-            Ok(r) => result = Ok(r),
+            Ok(_) => result = Ok(path.to_path_buf()),
             Err(_e) => {
                 let base = path
                     .parent()
                     .expect("should be able to get parent in fn create_data_dir()")
                     .to_path_buf();
                 let _result = create_dir(base);
-                result = create_dir(path);
+                match create_dir(path) {
+                    Ok(_) => result = Ok(path.to_path_buf()),
+                    Err(e) => result = Err(e),
+                }
             }
         }
     }

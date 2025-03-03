@@ -219,6 +219,7 @@ impl App<'_> {
             if !self.startup {
                 // check for startup checks to resolve and update app status
                 if let Ok(directory_check) = self.directory_channel.1.try_recv() {
+                    self.debug_string += "first startup check received";
                     self.startup = true;
                     self.directory_exist = directory_check.directory_exists;
                     self.data_directory_exist = directory_check.data_directory_exists;
@@ -229,6 +230,7 @@ impl App<'_> {
             }
             // spin up other startup processes once directories have been confirmed
             if self.directory_exist && !self.config_started {
+                self.debug_string += "starting config check...";
                 let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
                 let config_channel = self.config_channel.0.clone();
                 thread::spawn(move || {
@@ -239,6 +241,7 @@ impl App<'_> {
             }
             if !self.config_done {
                 if let Ok(cc) = self.config_channel.1.try_recv() {
+                    self.debug_string += "config check finished";
                     self.config_done = true;
                     self.config_exist = cc.config_exists;
                     self.config_status = cc.config_status;
@@ -265,6 +268,7 @@ impl App<'_> {
                 && self.config.collection_path.is_some()
                 && self.collection.is_none()
             {
+                self.debug_string += "attempting to auto load collection...";
                 // if config has a path to a collection and one isn't already loaded, try and load
                 // file specified in config
                 let collection_channel = self.collection_channel.0.clone();
@@ -301,6 +305,10 @@ impl App<'_> {
                 let database_channel = self.database_channel.0.clone();
                 let max_age = self.config.database_age_limit;
                 let dc_path = self.dc.database_path.clone();
+                self.debug_string += &format!(
+                    "data directory exists, checking for database on {:?}",
+                    &dc_path
+                );
                 thread::spawn(move || {
                     let database_results = task::block_on(database_check(dc_path, max_age));
                     if let Ok(()) = database_channel.send(database_results) {};
@@ -309,6 +317,7 @@ impl App<'_> {
             }
             if !self.database_done {
                 if let Ok(dc) = self.database_channel.1.try_recv() {
+                    self.debug_string += "received message from database thread";
                     self.database_done = true;
                     self.dc.database_exists = dc.database_exists;
                     self.dc.database_status = dc.database_status;

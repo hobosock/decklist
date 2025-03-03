@@ -359,7 +359,19 @@ pub fn create_data_directory() -> Result<(), std::io::Error> {
     ));
     if let Some(data_dir) = ProjectDirs::from("", "", "decklist") {
         let path = data_dir.data_local_dir();
-        result = create_dir(path);
+        // try to create config directory, then try to create parent directory first if it fails
+        // seems necessary for Windows
+        match create_dir(path) {
+            Ok(r) => result = Ok(r),
+            Err(_e) => {
+                let base = path
+                    .parent()
+                    .expect("should be able to get parent in fn create_data_dir()")
+                    .to_path_buf();
+                let _result = create_dir(base);
+                result = create_dir(path);
+            }
+        }
     }
     result
 }

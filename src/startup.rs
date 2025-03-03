@@ -317,6 +317,8 @@ fn directory_exist() -> bool {
 /// checks for existence of decklist data directory
 fn data_directory_exist() -> bool {
     let mut result = false;
+    // NOTE: I don't think I need to worry about the parent here like in the config directory
+    // creation function, because this should be called after that function
     if let Some(project_dir) = ProjectDirs::from("", "", "decklist") {
         let path = project_dir.data_local_dir();
         result = path.exists();
@@ -326,20 +328,53 @@ fn data_directory_exist() -> bool {
 
 /// creates config directory if it doesn't exist
 pub fn create_directory() -> Result<(), std::io::Error> {
-    let mut result = Err(std::io::Error::last_os_error()); // TODO: sucks
+    let mut result = Err(std::io::Error::new(
+        ErrorKind::Other,
+        "Error in fn create_directory() from creating project path.",
+    ));
     if let Some(project_dir) = ProjectDirs::from("", "", "decklist") {
         let path = project_dir.config_dir();
-        result = create_dir(path);
+        // try to create config directory, then try to create parent directory first if it fails
+        // seems necessary for Windows
+        match create_dir(path) {
+            Ok(r) => result = Ok(r),
+            Err(_e) => {
+                let base = path
+                    .parent()
+                    .expect("should be able to get parent in fn create_directory()")
+                    .to_path_buf();
+                let _result = create_dir(base);
+                result = create_dir(path);
+            }
+        }
     }
     result
 }
 
 /// creates data directory if it doesn't exist
-pub fn create_data_directory() -> Result<(), std::io::Error> {
-    let mut result = Err(std::io::Error::last_os_error());
+pub fn create_data_directory() -> Result<PathBuf, std::io::Error> {
+    let mut result = Err(std::io::Error::new(
+        ErrorKind::Other,
+        "fn create_data_directory() default",
+    ));
     if let Some(data_dir) = ProjectDirs::from("", "", "decklist") {
         let path = data_dir.data_local_dir();
-        result = create_dir(path);
+        // try to create config directory, then try to create parent directory first if it fails
+        // seems necessary for Windows
+        match create_dir(path) {
+            Ok(_) => result = Ok(path.to_path_buf()),
+            Err(_e) => {
+                let base = path
+                    .parent()
+                    .expect("should be able to get parent in fn create_data_dir()")
+                    .to_path_buf();
+                let _result = create_dir(base);
+                match create_dir(path) {
+                    Ok(_) => result = Ok(path.to_path_buf()),
+                    Err(e) => result = Err(e),
+                }
+            }
+        }
     }
     result
 }

@@ -651,17 +651,19 @@ fn s_press(app: &mut App) {
         MenuTabs::Database => {
             if let Some(file) = &app.man_database_file {
                 if let Some(path_string) = file.path().parent() {
-                    app.dc.database_path = path_string.to_path_buf();
-                    app.dc.filename = file.name().to_string();
-                    // this should trigger the regular database loading process
-                    app.dc.ready_load = true;
-                    app.load_started = false;
-                    app.load_done = false;
+                    if !app.load_started {
+                        app.dc.database_path = path_string.to_path_buf();
+                        app.dc.filename = file.name().to_string();
+                        // this should trigger the regular database loading process
+                        app.dc.ready_load = true;
+                        app.load_started = false;
+                        app.load_done = false;
+                    }
                 }
             }
         }
         MenuTabs::Collection => {
-            if app.collection_file.is_some() {
+            if app.collection_file.is_some() && !app.loading_collection {
                 let path_str = app.collection_file.as_ref().unwrap().path().to_str();
                 if path_str.is_some() {
                     let path_string = path_str.unwrap().to_string();
@@ -693,7 +695,7 @@ fn s_press(app: &mut App) {
             }
         }
         MenuTabs::Deck => {
-            if app.decklist_file.is_some() {
+            if app.decklist_file.is_some() && !app.loading_decklist {
                 let path_str = app.decklist_file.as_ref().unwrap().path().to_str();
                 if path_str.is_some() {
                     let path_string = path_str.unwrap().to_string();

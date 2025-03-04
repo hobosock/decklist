@@ -512,6 +512,7 @@ impl App<'_> {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('c') => c_press(self),
             KeyCode::Char('s') => s_press(self),
+            KeyCode::Char('f') => f_press(self),
             KeyCode::Enter => enter_press(self),
             KeyCode::Up => up_press(self),
             KeyCode::Down => down_press(self),
@@ -785,6 +786,41 @@ fn esc_press(app: &mut App) {
         }
         MenuTabs::Deck => {
             app.decklist = None;
+        }
+        _ => {}
+    }
+}
+
+fn f_press(app: &mut App) {
+    match app.active_tab {
+        MenuTabs::Missing => {
+            if app.missing_cards.is_some()
+                && app.decklist_file.is_some()
+                && app.decklist_file_name.is_some()
+            {
+                let mut file_string = String::new();
+                for card in app.missing_cards.as_ref().unwrap().iter() {
+                    file_string += &format!("{}\n", card);
+                }
+                if let Some(missing_directory) = app.decklist_file.as_ref().unwrap().path().parent()
+                {
+                    let missing_filename = missing_directory.to_path_buf().join(&format!(
+                        "missing_{}",
+                        app.decklist_file_name.as_ref().unwrap()
+                    ));
+                    app.debug_string += &format!("missing filename: {:?}\n", missing_filename);
+                    match fs::write(missing_filename, file_string) {
+                        Ok(()) => {
+                            app.debug_string +=
+                                &format!("Successfully wrote missing cards to file.\n")
+                        }
+                        Err(e) => {
+                            app.debug_string +=
+                                &format!("Writing missing cards to file failed: {}\n", e)
+                        }
+                    }
+                }
+            }
         }
         _ => {}
     }

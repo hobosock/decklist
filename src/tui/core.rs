@@ -156,7 +156,7 @@ pub fn ui(
                 " Quit ".into(),
                 "<C>".yellow().bold(),
                 " Copy to clipboard ".into(),
-                "<S>".yellow().bold(),
+                "<F>".yellow().bold(),
                 " Save to file ".into(),
                 "<Up/Down>".yellow().bold(),
                 " Navigate ".into(),

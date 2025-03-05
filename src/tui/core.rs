@@ -371,7 +371,11 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         app.missing_scroll_state = app
             .missing_scroll_state
             .content_length(app.missing_lines.len());
-        let missing_paragraph = Paragraph::new(app.missing_lines[app.missing_scroll..].to_vec());
+        let mut missing_lines = Vec::new();
+        for line in app.missing_lines.iter() {
+            missing_lines.push(Line::from(line.clone()));
+        }
+        let missing_paragraph = Paragraph::new(missing_lines[app.missing_scroll..].to_vec());
         //.scroll((app.missing_scroll as u16, 0))
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("^"))

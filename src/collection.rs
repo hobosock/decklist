@@ -107,7 +107,7 @@ pub fn read_decklist(file_name: String) -> Result<Vec<CollectionCard>, Box<dyn E
 
 /// compares the decklist to the loaded collection
 /// outputs a list of missing cards
-pub fn find_missing_cards(
+pub async fn find_missing_cards(
     collection: Vec<CollectionCard>,
     decklist: Vec<CollectionCard>,
 ) -> Option<Vec<CollectionCard>> {
@@ -136,6 +136,8 @@ pub fn find_missing_cards(
     }
 }
 
+/// compares missing card to Scryfall database (if included)
+/// if the card isn't found in the database, prompt the user to check the spelling
 pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -> String {
     let mut found = false;
     for card in database.iter() {

@@ -11,7 +11,7 @@ use directories_next::ProjectDirs;
 use std::{fs, io, thread, time::Duration};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use ratatui::{text::Line, widgets::ScrollbarState, Frame};
+use ratatui::{widgets::ScrollbarState, Frame};
 use ratatui_explorer::{File, FileExplorer};
 
 use crate::{
@@ -64,7 +64,7 @@ impl Default for DecklistMessage {
     }
 }
 
-pub struct App<'a> {
+pub struct App {
     exit: bool,
     pub startup: bool,
     pub config_started: bool,
@@ -108,6 +108,15 @@ pub struct App<'a> {
     pub decklist_status: String,
     pub debug_string: String,
     pub missing_cards: Option<Vec<CollectionCard>>,
+    pub missing_msg: (
+        std::sync::mpsc::Sender<Option<Vec<CollectionCard>>>,
+        std::sync::mpsc::Receiver<Option<Vec<CollectionCard>>>,
+    ),
+    pub missing_check_msg: (
+        std::sync::mpsc::Sender<Vec<String>>,
+        std::sync::mpsc::Receiver<Vec<String>>,
+    ),
+    pub waiting_for_missing: bool,
     pub missing_scroll: usize,
     pub missing_scroll_state: ScrollbarState,
     pub collection_scroll: usize,
@@ -125,7 +134,7 @@ pub struct App<'a> {
     ),
     pub loading_collection: bool,
     pub loading_decklist: bool,
-    pub missing_lines: Vec<Line<'a>>,
+    pub missing_lines: Vec<String>,
     pub clipboard: Result<Clipboard, arboard::Error>,
     pub debug_channel: (
         std::sync::mpsc::Sender<String>,
@@ -137,7 +146,7 @@ pub struct App<'a> {
     pub prompt_config_update: bool,
 }
 
-impl Default for App<'_> {
+impl Default for App {
     fn default() -> Self {
         Self {
             exit: false,
@@ -174,6 +183,9 @@ impl Default for App<'_> {
             decklist_status: String::new(),
             debug_string: String::new(),
             missing_cards: None,
+            missing_msg: std::sync::mpsc::channel(),
+            missing_check_msg: std::sync::mpsc::channel(),
+            waiting_for_missing: false,
             missing_scroll: 0,
             missing_scroll_state: ScrollbarState::default(),
             collection_scroll: 0,
@@ -196,7 +208,7 @@ impl Default for App<'_> {
     }
 }
 
-impl App<'_> {
+impl App {
     /// runs the application's main loop until the user quits
     pub fn run(
         &mut self,
@@ -400,21 +412,31 @@ impl App<'_> {
                     self.collection_exist = msg.exist;
                     self.collection_file_name = msg.filename;
                     self.loading_collection = false;
-                    if self.collection.is_some() && self.decklist.is_some() {
-                        self.missing_cards = find_missing_cards(
-                            self.collection.clone().unwrap(),
-                            self.decklist.clone().unwrap(),
-                        );
-                        self.missing_lines = Vec::new();
-                        for card in self.missing_cards.clone().unwrap() {
-                            let missing_str = if self.dc.database_cards.is_some() {
-                                check_missing(self.dc.database_cards.as_ref().unwrap(), &card)
-                            } else {
-                                "".to_string()
-                            };
-                            self.missing_lines
-                                .push(Line::from(format!("{}{}", card, missing_str)));
-                        }
+                    if self.collection.is_some()
+                        && self.decklist.is_some()
+                        && self.dc.database_cards.is_some()
+                        && !self.waiting_for_missing
+                    {
+                        self.debug_string += "starting missing cards thread...\n";
+                        let missing_channel = self.missing_msg.0.clone();
+                        let check_channel = self.missing_check_msg.0.clone();
+                        let collection = self.collection.clone().unwrap();
+                        let decklist = self.decklist.clone().unwrap();
+                        let database = self.dc.database_cards.clone().unwrap();
+                        thread::spawn(move || {
+                            let missing_cards =
+                                task::block_on(find_missing_cards(collection, decklist));
+                            let mut checks = Vec::new();
+                            if missing_cards.is_some() {
+                                for card in missing_cards.as_ref().unwrap() {
+                                    let missing_str = check_missing(&database, card);
+                                    checks.push(format!("{}{}", card, missing_str));
+                                }
+                            }
+                            if let Ok(()) = check_channel.send(checks) {};
+                            if let Ok(()) = missing_channel.send(missing_cards) {};
+                        });
+                        self.waiting_for_missing = true;
                     }
                     self.loading_collection = false;
                     self.redraw = true;
@@ -427,24 +449,45 @@ impl App<'_> {
                     self.decklist = msg.decklist;
                     self.decklist_status = msg.status;
                     self.loading_decklist = false;
-                    if self.collection.is_some() && self.decklist.is_some() {
-                        self.missing_cards = find_missing_cards(
-                            self.collection.clone().unwrap(),
-                            self.decklist.clone().unwrap(),
-                        );
-                        self.missing_lines = Vec::new();
-                        for card in self.missing_cards.clone().unwrap() {
-                            let missing_str = if self.dc.database_cards.is_some() {
-                                check_missing(self.dc.database_cards.as_ref().unwrap(), &card)
-                            } else {
-                                "".to_string()
-                            };
-                            self.missing_lines
-                                .push(Line::from(format!("{}{}", card, missing_str)));
-                        }
+                    if self.collection.is_some()
+                        && self.decklist.is_some()
+                        && self.dc.database_cards.is_some()
+                        && !self.waiting_for_missing
+                    {
+                        self.debug_string += "starting missing cards thread...\n";
+                        let missing_channel = self.missing_msg.0.clone();
+                        let check_channel = self.missing_check_msg.0.clone();
+                        let collection = self.collection.clone().unwrap();
+                        let decklist = self.decklist.clone().unwrap();
+                        let database = self.dc.database_cards.clone().unwrap();
+                        thread::spawn(move || {
+                            let missing_cards =
+                                task::block_on(find_missing_cards(collection, decklist));
+                            let mut checks = Vec::new();
+                            if missing_cards.is_some() {
+                                for card in missing_cards.as_ref().unwrap() {
+                                    let missing_str = check_missing(&database, card);
+                                    checks.push(format!("{}{}", card, missing_str));
+                                }
+                            }
+                            if let Ok(()) = check_channel.send(checks) {};
+                            if let Ok(()) = missing_channel.send(missing_cards) {};
+                        });
+                        self.waiting_for_missing = true;
                     }
                     self.loading_decklist = false;
                     self.redraw = true;
+                }
+            }
+            if self.waiting_for_missing {
+                if let Ok(missing_cards) = self.missing_msg.1.try_recv() {
+                    self.debug_string += "received missing message\n";
+                    self.missing_cards = missing_cards;
+                }
+                if let Ok(missing_text) = self.missing_check_msg.1.try_recv() {
+                    self.debug_string += "received missing text message\n";
+                    self.missing_lines = missing_text;
+                    self.waiting_for_missing = false;
                 }
             }
             if self.redraw {

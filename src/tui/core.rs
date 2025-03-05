@@ -314,15 +314,15 @@ fn draw_decklist_main(
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(2)])
         .split(main_block.inner(chunk));
-    if app.decklist.is_none() {
-        app.decklist_status = "Please select a decklist.".to_string();
+    let decklist_msg = if app.decklist.is_none() {
+        format!("Please select a decklist. | {}", app.decklist_status)
     } else {
-        app.decklist_status = format!(
+        format!(
             "Decklist loaded successfully.  Using {}",
             app.decklist_file_name.as_ref().unwrap() // NOTE: should exist if you get to this branch
-        );
-    }
-    let file_paragraph = Paragraph::new(app.decklist_status.clone()).wrap(Wrap { trim: true });
+        )
+    };
+    let file_paragraph = Paragraph::new(decklist_msg).wrap(Wrap { trim: true });
     frame.render_widget(main_block, chunk);
     frame.render_widget(file_paragraph, sections[0]);
     if app.decklist.is_some() {

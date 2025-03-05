@@ -1,2 +1,1 @@
-show error message on Deck tab if user tries to load an incompatible file
 make misspelled cards check async

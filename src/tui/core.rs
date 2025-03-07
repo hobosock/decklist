@@ -222,7 +222,7 @@ fn draw_welcome_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         collection_line,
     ]))
     .wrap(Wrap { trim: true })
-    .centered()
+    //.centered()
     .block(main_block);
     frame.render_widget(status_paragraph, chunk);
 }

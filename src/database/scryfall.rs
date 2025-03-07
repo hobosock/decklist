@@ -158,6 +158,8 @@ pub enum ImageStatus {
     HighRes,
     #[serde(rename = "lowres")]
     LowRes,
+    #[serde(rename = "missing")]
+    Missing,
 }
 
 /// struct for all Scryfall image uris

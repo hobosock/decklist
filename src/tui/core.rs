@@ -17,6 +17,8 @@ use ratatui_explorer::FileExplorer;
 
 use crate::app::App;
 
+use super::help::{ABOUT_STR, BUG_STR, HELP_STR};
+
 /// a type alias for terminal type used
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
 
@@ -90,15 +92,14 @@ pub fn ui(
 
     // change bottom two chunks based on selected tab
     let instructions_block = Block::default().borders(Borders::ALL);
-    let mut instructions_text = Text::from(vec![Line::from(vec!["test".into()])]);
+    let mut instructions_text = Text::from(vec![Line::from(vec![
+        "<Q>".yellow().bold(),
+        " Quit ".into(),
+        "<1-6>".yellow().bold(),
+        " Change Tabs ".into(),
+    ])]);
     match app.active_tab {
         MenuTabs::Welcome => {
-            instructions_text = Text::from(vec![Line::from(vec![
-                "<Q>".yellow().bold(),
-                " Quit ".into(),
-                "<1-6>".yellow().bold(),
-                " Change Tabs ".into(),
-            ])]);
             draw_welcome_main(app, frame, chunks[1], main_block);
         }
         MenuTabs::Database => {
@@ -156,17 +157,19 @@ pub fn ui(
                 " Quit ".into(),
                 "<C>".yellow().bold(),
                 " Copy to clipboard ".into(),
-                "<S>".yellow().bold(),
+                "<F>".yellow().bold(),
                 " Save to file ".into(),
                 "<Up/Down>".yellow().bold(),
                 " Navigate ".into(),
             ])]);
             draw_missing_main(app, frame, chunks[1], main_block);
         }
+        MenuTabs::Help => {
+            draw_help_main(frame, chunks[1], main_block);
+        }
         MenuTabs::Debug => {
             draw_debug_main(app, frame, chunks[1], main_block);
         }
-        _ => {}
     }
 
     let instructions = Paragraph::new(instructions_text)
@@ -314,15 +317,15 @@ fn draw_decklist_main(
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(2)])
         .split(main_block.inner(chunk));
-    if app.decklist.is_none() {
-        app.decklist_status = "Please select a decklist.".to_string();
+    let decklist_msg = if app.decklist.is_none() {
+        format!("Please select a decklist. | {}", app.decklist_status)
     } else {
-        app.decklist_status = format!(
+        format!(
             "Decklist loaded successfully.  Using {}",
             app.decklist_file_name.as_ref().unwrap() // NOTE: should exist if you get to this branch
-        );
-    }
-    let file_paragraph = Paragraph::new(app.decklist_status.clone()).wrap(Wrap { trim: true });
+        )
+    };
+    let file_paragraph = Paragraph::new(decklist_msg).wrap(Wrap { trim: true });
     frame.render_widget(main_block, chunk);
     frame.render_widget(file_paragraph, sections[0]);
     if app.decklist.is_some() {
@@ -371,7 +374,11 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         app.missing_scroll_state = app
             .missing_scroll_state
             .content_length(app.missing_lines.len());
-        let missing_paragraph = Paragraph::new(app.missing_lines[app.missing_scroll..].to_vec());
+        let mut missing_lines = Vec::new();
+        for line in app.missing_lines.iter() {
+            missing_lines.push(Line::from(line.clone()));
+        }
+        let missing_paragraph = Paragraph::new(missing_lines[app.missing_scroll..].to_vec());
         //.scroll((app.missing_scroll as u16, 0))
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("^"))
@@ -380,4 +387,18 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         frame.render_widget(missing_paragraph, inner_area);
         frame.render_stateful_widget(scrollbar, inner_area, &mut app.missing_scroll_state);
     }
+}
+
+/// draws the main block of the help tab
+fn draw_help_main(frame: &mut Frame, chunk: Rect, main_block: Block) {
+    let subs = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(2), Constraint::Min(2), Constraint::Min(2)])
+        .split(main_block.inner(chunk));
+    let help_paragraph = Paragraph::new(HELP_STR).wrap(Wrap { trim: true });
+    let about_paragraph = Paragraph::new(ABOUT_STR).wrap(Wrap { trim: true }).cyan();
+    let bug_paragraph = Paragraph::new(BUG_STR).wrap(Wrap { trim: true }).magenta();
+    frame.render_widget(help_paragraph, subs[0]);
+    frame.render_widget(about_paragraph, subs[1]);
+    frame.render_widget(bug_paragraph, subs[2]);
 }

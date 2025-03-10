@@ -103,7 +103,7 @@ pub enum Languages {
 }
 
 /// different card layout options
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 pub enum CardLayouts {
     #[serde(rename = "normal")]
     Normal,

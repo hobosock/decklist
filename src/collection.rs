@@ -8,7 +8,7 @@ use csv::ReaderBuilder;
 use diacritics::remove_diacritics;
 use serde::Deserialize;
 
-use crate::database::scryfall::ScryfallCard;
+use crate::database::scryfall::{CardLayouts, ScryfallCard};
 
 /// simple card format for collections and decklists
 /// just the card name and the quantity
@@ -141,7 +141,12 @@ pub async fn find_missing_cards(
 pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -> String {
     let mut found = false;
     for card in database.iter() {
-        if remove_diacritics(&missing_card.name) == remove_diacritics(&card.name) {
+        if remove_diacritics(&missing_card.name) == remove_diacritics(&card.name)
+            || (remove_diacritics(&card.name)
+                .find(&remove_diacritics(&missing_card.name))
+                .is_some()
+                && card.layout == CardLayouts::Transform)
+        {
             found = true;
             break;
         }

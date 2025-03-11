@@ -115,7 +115,7 @@ pub async fn find_missing_cards(
     for card in decklist.iter() {
         let mut found = false;
         for item in collection.iter() {
-            if item.name == card.name {
+            if remove_diacritics(&item.name) == remove_diacritics(&card.name) {
                 found = true;
                 if item.quantity < card.quantity {
                     let mut missing_card = card.clone();
@@ -123,6 +123,31 @@ pub async fn find_missing_cards(
                     missing_cards.push(missing_card);
                 }
                 break;
+            }
+            // NOTE: split/transofrm/etc cards are tricky to match
+            if item.name.contains("//") {
+                let half_name = item.name.split("//").collect::<Vec<&str>>()[0].trim();
+                if remove_diacritics(half_name) == remove_diacritics(&card.name) {
+                    found = true;
+                    if item.quantity < card.quantity {
+                        let mut missing_card = card.clone();
+                        missing_card.quantity -= item.quantity;
+                        missing_cards.push(missing_card);
+                    }
+                    break;
+                }
+            }
+            if card.name.contains("//") {
+                let half_name = card.name.split("//").collect::<Vec<&str>>()[0].trim();
+                if remove_diacritics(half_name) == remove_diacritics(&item.name) {
+                    found = true;
+                    if item.quantity < card.quantity {
+                        let mut missing_card = card.clone();
+                        missing_card.quantity -= item.quantity;
+                        missing_cards.push(missing_card);
+                    }
+                    break;
+                }
             }
         }
         if !found {
@@ -141,11 +166,21 @@ pub async fn find_missing_cards(
 pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -> String {
     let mut found = false;
     for card in database.iter() {
+        // NOTE: dual/split/transform card names are tricky - match on a partial
+        let dual = if card.layout == CardLayouts::Transform
+            || card.layout == CardLayouts::Flip
+            || card.layout == CardLayouts::Split
+            || card.layout == CardLayouts::ModalDualFaceCard
+        {
+            true
+        } else {
+            false
+        };
         if remove_diacritics(&missing_card.name) == remove_diacritics(&card.name)
             || (remove_diacritics(&card.name)
                 .find(&remove_diacritics(&missing_card.name))
                 .is_some()
-                && card.layout == CardLayouts::Transform)
+                && dual)
         {
             found = true;
             break;

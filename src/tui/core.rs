@@ -83,7 +83,7 @@ pub fn ui(
 
     // define main/center area for display
     let version =
-        Line::from(vec!["| Deck Checker v0.1.1 |".into()]).style(Style::default().cyan().bold());
+        Line::from(vec!["| Decklist v0.1.2 |".into()]).style(Style::default().cyan().bold());
     let main_block = Block::default()
         .title_bottom(version)
         .title_alignment(Alignment::Center)

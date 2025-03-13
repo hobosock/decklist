@@ -1,5 +1,6 @@
 use std::{error::Error, fs, path::PathBuf};
 
+use diacritics::remove_diacritics;
 use serde::Deserialize;
 
 /// structure for all Scryfall card data for a unique card
@@ -552,6 +553,35 @@ pub struct Legalities {
     pub predh: Legality,
 }
 
+impl Default for Legalities {
+    fn default() -> Self {
+        Self {
+            standard: Legality::NotLegal,
+            future: Legality::NotLegal,
+            historic: Legality::NotLegal,
+            timeless: Legality::NotLegal,
+            gladiator: Legality::NotLegal,
+            pioneer: Legality::NotLegal,
+            explorer: Legality::NotLegal,
+            modern: Legality::NotLegal,
+            legacy: Legality::NotLegal,
+            pauper: Legality::NotLegal,
+            vintage: Legality::NotLegal,
+            penny: Legality::NotLegal,
+            commander: Legality::NotLegal,
+            oathbreaker: Legality::NotLegal,
+            standardbrawl: Legality::NotLegal,
+            brawl: Legality::NotLegal,
+            alchemy: Legality::NotLegal,
+            paupercommander: Legality::NotLegal,
+            duel: Legality::NotLegal,
+            oldschool: Legality::NotLegal,
+            premodern: Legality::NotLegal,
+            predh: Legality::NotLegal,
+        }
+    }
+}
+
 /// different game formats
 #[derive(Deserialize, Clone)]
 pub enum GameFormat {
@@ -695,4 +725,32 @@ pub fn read_scryfall_database(path: &PathBuf) -> Result<Vec<ScryfallCard>, Box<d
     let file_text = fs::read_to_string(path)?;
     let test: Result<Vec<ScryfallCard>, serde_json::Error> = serde_json::from_str(&file_text);
     Ok(test?)
+}
+
+// TODO: maybe replace the manual implementations of this elsewhere?
+/// takes card name and finds matching card in database
+pub fn match_card(cardname: &str, database: &[ScryfallCard]) -> Option<ScryfallCard> {
+    let mut found = None;
+    for card in database.iter() {
+        // NOTE: dual/split/transform card names are tricky - match on a partial
+        let dual = if card.layout == CardLayouts::Transform
+            || card.layout == CardLayouts::Flip
+            || card.layout == CardLayouts::Split
+            || card.layout == CardLayouts::ModalDualFaceCard
+        {
+            true
+        } else {
+            false
+        };
+        if remove_diacritics(cardname) == remove_diacritics(&card.name)
+            || (remove_diacritics(&card.name)
+                .find(&remove_diacritics(cardname))
+                .is_some()
+                && dual)
+        {
+            found = Some(card.clone());
+            break;
+        }
+    }
+    found
 }

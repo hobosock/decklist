@@ -2,14 +2,14 @@
 name = "decklist"
 version = "0.2.0"
 edition = "2021"
-authors = "Seth <bajablastoise@protonmail.com>"
+authors = ["Seth <bajablastoise@protonmail.com>"]
 license = "Unlicense"
 description = "A tool to check if you can build a deck based on your Magic: the Gathering collection."
 readme = "README.md"
 homepage = "https://github.com/hobosock/decklist"
 repository = "https://github.com/hobosock/decklist"
 keywords = ["Magic", "Magic the Gathering", "Magic: the Gathering", "collection", "deck", "decklist", "deck list"]
-categories = "Games"
+categories = ["Games"]
 
 [dependencies]
 async-std = "1.13.0"

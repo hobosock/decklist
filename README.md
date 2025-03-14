@@ -31,4 +31,9 @@ Decklist features can be configured using the **config.toml** file in the user's
 **collection_path** This is the path to your collection file that Decklist will attempt to load automatically on startup.  This can be updated from within the program when successfully loading a collection file in the **Collection** tab.
 
 ## Installation
-Decklist can be installed by downloading the binaries from the *Releases* page.  If you have the Rust toolchain installed, you can build from source by cloning this repository and running `cargo build --release`.
+### Binaries
+Decklist can be installed by downloading the binaries from the *Releases* page.
+### Building From Source
+If you have the Rust toolchain installed, you can build from source by cloning this repository and running `cargo build --release`.
+### Cargo
+`cargo install decklist`

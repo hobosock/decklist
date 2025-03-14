@@ -9,7 +9,7 @@ readme = "README.md"
 homepage = "https://github.com/hobosock/decklist"
 repository = "https://github.com/hobosock/decklist"
 keywords = ["Magic", "Gathering", "collection", "deck", "decklist"]
-categories = ["Games"]
+categories = ["games"]
 
 [dependencies]
 async-std = "1.13.0"

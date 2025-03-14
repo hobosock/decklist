@@ -8,7 +8,7 @@ use csv::ReaderBuilder;
 use diacritics::remove_diacritics;
 use serde::Deserialize;
 
-use crate::database::scryfall::{CardLayouts, ScryfallCard};
+use crate::database::scryfall::{match_card, CardLayouts, Legality, ScryfallCard};
 
 /// simple card format for collections and decklists
 /// just the card name and the quantity
@@ -191,4 +191,148 @@ pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -
     } else {
         " <------ This card was not found in database.  Check spelling?".to_string()
     }
+}
+
+/// simpler format legality struct, just a basic true/false
+/// default to true, then eliminate formats as you go through cards
+pub struct FormatLegal {
+    pub standard: bool,
+    pub future: bool,
+    pub historic: bool,
+    pub timeless: bool,
+    pub gladiator: bool,
+    pub pioneer: bool,
+    pub explorer: bool,
+    pub modern: bool,
+    pub legacy: bool,
+    pub pauper: bool,
+    pub vintage: bool,
+    pub penny: bool,
+    pub commander: bool,
+    pub oathbreaker: bool,
+    pub standardbrawl: bool,
+    pub brawl: bool,
+    pub alchemy: bool,
+    pub paupercommander: bool,
+    pub duel: bool,
+    pub oldschool: bool,
+    pub premodern: bool,
+    pub predh: bool,
+}
+
+impl Default for FormatLegal {
+    fn default() -> Self {
+        Self {
+            standard: true,
+            future: true,
+            historic: true,
+            timeless: true,
+            gladiator: true,
+            pioneer: true,
+            explorer: true,
+            modern: true,
+            legacy: true,
+            pauper: true,
+            vintage: true,
+            penny: true,
+            commander: true,
+            oathbreaker: true,
+            standardbrawl: true,
+            brawl: true,
+            alchemy: true,
+            paupercommander: true,
+            duel: true,
+            oldschool: true,
+            premodern: true,
+            predh: true,
+        }
+    }
+}
+
+/// convert multiple types of Scryfall Legalities into a simple true/false
+/// TODO: deal with Restricted type somehow?
+fn convert_legal(legal: Legality) -> bool {
+    match legal {
+        Legality::Legal => true,
+        Legality::Restricted => true,
+        _ => false,
+    }
+}
+
+/// checks decklist for legality, and outputs a structure with the results
+pub async fn check_legality(decklist: &[CollectionCard], database: &[ScryfallCard]) -> FormatLegal {
+    // TODO: check number of cards?
+    let mut legal = FormatLegal::default();
+    for card in decklist {
+        if let Some(matched) = match_card(&card.name, database) {
+            // go through every format - if still true, check current card legality
+            if legal.standard {
+                legal.standard = convert_legal(matched.legalities.standard); // only go to false
+            }
+            if legal.future {
+                legal.future = convert_legal(matched.legalities.future);
+            }
+            if legal.historic {
+                legal.historic = convert_legal(matched.legalities.historic);
+            }
+            if legal.timeless {
+                legal.timeless = convert_legal(matched.legalities.timeless);
+            }
+            if legal.gladiator {
+                legal.gladiator = convert_legal(matched.legalities.gladiator);
+            }
+            if legal.pioneer {
+                legal.pioneer = convert_legal(matched.legalities.pioneer);
+            }
+            if legal.explorer {
+                legal.explorer = convert_legal(matched.legalities.explorer);
+            }
+            if legal.modern {
+                legal.modern = convert_legal(matched.legalities.modern);
+            }
+            if legal.legacy {
+                legal.legacy = convert_legal(matched.legalities.legacy);
+            }
+            if legal.pauper {
+                legal.pauper = convert_legal(matched.legalities.pauper);
+            }
+            if legal.vintage {
+                legal.vintage = convert_legal(matched.legalities.vintage);
+            }
+            if legal.penny {
+                legal.penny = convert_legal(matched.legalities.penny);
+            }
+            if legal.commander {
+                legal.commander = convert_legal(matched.legalities.commander);
+            }
+            if legal.oathbreaker {
+                legal.oathbreaker = convert_legal(matched.legalities.oathbreaker);
+            }
+            if legal.standardbrawl {
+                legal.standardbrawl = convert_legal(matched.legalities.standardbrawl);
+            }
+            if legal.brawl {
+                legal.brawl = convert_legal(matched.legalities.brawl);
+            }
+            if legal.alchemy {
+                legal.alchemy = convert_legal(matched.legalities.alchemy);
+            }
+            if legal.paupercommander {
+                legal.paupercommander = convert_legal(matched.legalities.paupercommander);
+            }
+            if legal.duel {
+                legal.duel = convert_legal(matched.legalities.duel);
+            }
+            if legal.oldschool {
+                legal.oldschool = convert_legal(matched.legalities.oldschool);
+            }
+            if legal.premodern {
+                legal.premodern = convert_legal(matched.legalities.premodern);
+            }
+            if legal.predh {
+                legal.predh = convert_legal(matched.legalities.predh);
+            }
+        }
+    }
+    legal
 }

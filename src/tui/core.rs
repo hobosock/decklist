@@ -9,7 +9,7 @@ use ratatui::{
     prelude::{CrosstermBackend, Widget},
     style::{Style, Stylize},
     symbols::border,
-    text::{Line, Text},
+    text::{Line, Span, Text},
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, Tabs, Wrap},
     Frame, Terminal,
 };
@@ -83,7 +83,7 @@ pub fn ui(
 
     // define main/center area for display
     let version =
-        Line::from(vec!["| Decklist v0.1.2 |".into()]).style(Style::default().cyan().bold());
+        Line::from(vec!["| Decklist v0.2.0 |".into()]).style(Style::default().cyan().bold());
     let main_block = Block::default()
         .title_bottom(version)
         .title_alignment(Alignment::Center)
@@ -329,6 +329,11 @@ fn draw_decklist_main(
     frame.render_widget(main_block, chunk);
     frame.render_widget(file_paragraph, sections[0]);
     if app.decklist.is_some() {
+        // further split area  for format legality info
+        let subs = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Fill(1), Constraint::Min(3)])
+            .split(sections[1]);
         let mut lines: Vec<Line> = Vec::new();
         for card in app.decklist.as_ref().unwrap() {
             lines.push(Line::from(format!("{}", card)));
@@ -338,15 +343,162 @@ fn draw_decklist_main(
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("^"))
             .end_symbol(Some("v"));
-        frame.render_widget(decklist_paragraph, sections[1]);
+        frame.render_widget(decklist_paragraph, subs[0]);
         frame.render_stateful_widget(
             scrollbar,
-            sections[1].inner(Margin {
+            subs[0].inner(Margin {
                 horizontal: 1,
                 vertical: 0,
             }),
             &mut app.decklist_scroll_state,
         );
+        // style text based on legality
+        if app.legality.is_some() {
+            let fl = app.legality.as_ref().unwrap();
+            // this is annoyingly redundant but spans have lifetimes, so making this a function is
+            // even more annoying ¯\_(ツ)_/¯
+            let standard_text = if fl.standard {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let future_text = if fl.future {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let historic_text = if fl.historic {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let timeless_text = if fl.timeless {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let gladiator_text = if fl.gladiator {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let pioneer_text = if fl.pioneer {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let explorer_text = if fl.explorer {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let modern_text = if fl.modern {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let legacy_text = if fl.legacy {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let pauper_text = if fl.pauper {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let vintage_text = if fl.vintage {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let penny_text = if fl.penny {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let commander_text = if fl.commander {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let oathbreaker_text = if fl.oathbreaker {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let standard_brawl_text = if fl.standardbrawl {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let brawl_text = if fl.brawl {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let alchemy_text = if fl.alchemy {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let pauper_commander_text = if fl.paupercommander {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let duel_text = if fl.duel {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let oldschool_text = if fl.oldschool {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let premodern_text = if fl.premodern {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let predh_text = if fl.predh {
+                Span::from("LEGAL").green()
+            } else {
+                Span::from("NOT LEGAL").red()
+            };
+            let legal_lines = Paragraph::new(vec![
+                Line::from(vec![Span::from("Standard: ").bold(), standard_text]),
+                Line::from(vec![Span::from("Pioneer: ").bold(), pioneer_text]),
+                Line::from(vec![Span::from("Modern: ").bold(), modern_text]),
+                Line::from(vec![Span::from("Legacy: ").bold(), legacy_text]),
+                Line::from(vec![Span::from("Vintage: ").bold(), vintage_text]),
+                Line::from(vec![Span::from("Pauper: ").bold(), pauper_text]),
+                Line::from(vec![Span::from("Penny: ").bold(), penny_text]),
+                Line::from(vec![Span::from("Premodern: ").bold(), premodern_text]),
+                Line::from(vec![Span::from("Old School: ").bold(), oldschool_text]),
+                Line::from(vec![Span::from("Commander: ").bold(), commander_text]),
+                Line::from(vec![
+                    Span::from("Pauper Commander: ").bold(),
+                    pauper_commander_text,
+                ]),
+                Line::from(vec![Span::from("Explorer: ").bold(), explorer_text]),
+                Line::from(vec![Span::from("Historic: ").bold(), historic_text]),
+                Line::from(vec![Span::from("Timeless: ").bold(), timeless_text]),
+                Line::from(vec![Span::from("Alchemy: ").bold(), alchemy_text]),
+                Line::from(vec![Span::from("Brawl: ").bold(), brawl_text]),
+                Line::from(vec![
+                    Span::from("Standard Brawl: ").bold(),
+                    standard_brawl_text,
+                ]),
+                Line::from(vec![Span::from("Predh: ").bold(), predh_text]),
+                Line::from(vec![Span::from("Gladiator: ").bold(), gladiator_text]),
+                Line::from(vec![Span::from("Duel: ").bold(), duel_text]),
+                Line::from(vec![Span::from("Future: ").bold(), future_text]),
+                Line::from(vec![Span::from("Oathbreaker: ").bold(), oathbreaker_text]),
+            ]);
+            frame.render_widget(legal_lines, subs[1]);
+        }
     } else {
         frame.render_widget(&explorer.widget(), sections[1]);
     }

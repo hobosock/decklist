@@ -8,7 +8,7 @@ description = "A tool to check if you can build a deck based on your Magic: the 
 readme = "README.md"
 homepage = "https://github.com/hobosock/decklist"
 repository = "https://github.com/hobosock/decklist"
-keywords = ["Magic", "Magic the Gathering", "collection", "deck", "decklist"]
+keywords = ["Magic", "Gathering", "collection", "deck", "decklist"]
 categories = ["Games"]
 
 [dependencies]

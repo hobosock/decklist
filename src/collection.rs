@@ -260,7 +260,8 @@ fn convert_legal(legal: Legality) -> bool {
 }
 
 /// checks decklist for legality, and outputs a structure with the results
-pub fn check_legality(decklist: &[CollectionCard], database: &[ScryfallCard]) -> FormatLegal {
+pub async fn check_legality(decklist: &[CollectionCard], database: &[ScryfallCard]) -> FormatLegal {
+    // TODO: check number of cards?
     let mut legal = FormatLegal::default();
     for card in decklist {
         if let Some(matched) = match_card(&card.name, database) {

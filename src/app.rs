@@ -1,5 +1,5 @@
 use crate::{
-    collection::check_missing,
+    collection::{check_legality, check_missing, FormatLegal},
     startup::{
         config_check, database_check, database_management, directory_check, dl_scryfall_latest,
         load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
@@ -144,6 +144,13 @@ pub struct App {
     pub man_database_file: Option<File>,
     pub man_database_file_name: Option<String>,
     pub prompt_config_update: bool,
+    pub legality: Option<FormatLegal>,
+    pub legal_started: bool,
+    pub legal_done: bool,
+    pub legal_msg: (
+        std::sync::mpsc::Sender<FormatLegal>,
+        std::sync::mpsc::Receiver<FormatLegal>,
+    ),
 }
 
 impl Default for App {
@@ -204,6 +211,10 @@ impl Default for App {
             man_database_file: None,
             man_database_file_name: None,
             prompt_config_update: false,
+            legality: None,
+            legal_started: false,
+            legal_done: false,
+            legal_msg: std::sync::mpsc::channel(),
         }
     }
 }
@@ -478,6 +489,23 @@ impl App {
                     self.loading_decklist = false;
                     self.redraw = true;
                 }
+            }
+            if self.dc.database_cards.is_some() && self.decklist.is_some() && !self.legal_started {
+                let decklist = self.decklist.clone().unwrap();
+                let database = self.dc.database_cards.clone().unwrap();
+                let legal_msg = self.legal_msg.0.clone();
+                thread::spawn(move || {
+                    let legal = task::block_on(check_legality(&decklist, &database));
+                    if let Ok(()) = legal_msg.send(legal) {};
+                });
+                self.legal_started = true;
+            }
+            if self.legal_started && !self.legal_done {
+                if let Ok(legal_msg) = self.legal_msg.1.try_recv() {
+                    self.legality = Some(legal_msg);
+                    self.legal_done = true;
+                }
+                self.redraw = true;
             }
             if self.waiting_for_missing {
                 if let Ok(missing_cards) = self.missing_msg.1.try_recv() {
@@ -759,6 +787,8 @@ fn s_press(app: &mut App) {
                         }
                         if let Ok(()) = decklist_channel.send(message) {};
                     });
+                    app.legal_done = false;
+                    app.legal_started = false;
                 }
             }
         }

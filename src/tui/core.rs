@@ -83,7 +83,7 @@ pub fn ui(
 
     // define main/center area for display
     let version =
-        Line::from(vec!["| Decklist v0.2.0 |".into()]).style(Style::default().cyan().bold());
+        Line::from(vec!["| Decklist v0.3.0 |".into()]).style(Style::default().cyan().bold());
     let main_block = Block::default()
         .title_bottom(version)
         .title_alignment(Alignment::Center)
@@ -527,8 +527,18 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
             .missing_scroll_state
             .content_length(app.missing_lines.len());
         let mut missing_lines = Vec::new();
-        for line in app.missing_lines.iter() {
-            missing_lines.push(Line::from(line.clone()));
+        for (i, line_str) in app.missing_lines.iter().enumerate() {
+            let price_str =
+                if app.missing_price.is_some() && app.missing_price.as_ref().unwrap().len() >= i {
+                    app.missing_price.as_ref().unwrap()[i].clone()
+                } else {
+                    "".to_string()
+                };
+            missing_lines.push(Line::from(vec![
+                Span::from(line_str.clone()),
+                Span::from("     "),
+                Span::from(price_str).magenta(),
+            ]));
         }
         let missing_paragraph = Paragraph::new(missing_lines[app.missing_scroll..].to_vec());
         //.scroll((app.missing_scroll as u16, 0))

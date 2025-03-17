@@ -85,6 +85,36 @@ pub struct ScryfallCard {
     pub purchase_uris: ScryfallPurchase,
 }
 
+impl ScryfallCard {
+    pub fn price_to_string(self, quantity: u64, price_type: PriceType) -> String {
+        let currency_str = match price_type {
+            PriceType::USD => "$".to_string(),
+            PriceType::Euro => "€".to_string(),
+            PriceType::Tix => "Tix ".to_string(),
+        };
+        if let Some(price) = match price_type {
+            PriceType::USD => self.prices.usd,
+            PriceType::Euro => self.prices.euro,
+            PriceType::Tix => self.prices.tix,
+        } {
+            match price.parse::<f64>() {
+                Ok(price_num) => {
+                    format!(
+                        "[{}] x{} = {}{}",
+                        price_num,
+                        quantity,
+                        currency_str,
+                        price_num * quantity as f64
+                    )
+                }
+                Err(_e) => price,
+            }
+        } else {
+            "".to_string()
+        }
+    }
+}
+
 /// represents different kinds of Scryfall objects
 #[derive(Deserialize, Clone)]
 pub enum ScryfallObject {
@@ -694,6 +724,13 @@ pub struct ScryfallPrices {
     pub euro: Option<String>,       // Option<f64>,
     pub euro_foil: Option<String>,  // Option<f64>,
     pub tix: Option<String>,        // Option<f64>,
+}
+
+/// selected currency to show prices in
+pub enum PriceType {
+    USD,
+    Euro,
+    Tix,
 }
 
 /// struct of all of Scryfall's related URIs

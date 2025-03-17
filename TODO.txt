@@ -1,0 +1,4 @@
+export actual numbers from price function
+display total cost
+round price numbers to 2 decimals
+align price numbers?

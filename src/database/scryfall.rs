@@ -1,7 +1,7 @@
 use std::{error::Error, fs, path::PathBuf};
 
 use diacritics::remove_diacritics;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// structure for all Scryfall card data for a unique card
 // TODO: map to JSON field names manually?  or rename?
@@ -100,7 +100,7 @@ impl ScryfallCard {
             match price.parse::<f64>() {
                 Ok(price_num) => {
                     format!(
-                        "[{}] x{} = {}{}",
+                        "[{:.2}] x{} = {}{:.2}",
                         price_num,
                         quantity,
                         currency_str,
@@ -112,6 +112,20 @@ impl ScryfallCard {
         } else {
             "".to_string()
         }
+    }
+    pub fn get_price(self, quantity: u64, price_type: PriceType) -> f64 {
+        let mut price = 0.0;
+        if let Some(price_str) = match price_type {
+            PriceType::USD => self.prices.usd,
+            PriceType::Euro => self.prices.euro,
+            PriceType::Tix => self.prices.tix,
+        } {
+            match price_str.parse::<f64>() {
+                Ok(price_num) => price = price_num,
+                Err(_e) => {}
+            }
+        };
+        price * quantity as f64
     }
 }
 
@@ -727,6 +741,7 @@ pub struct ScryfallPrices {
 }
 
 /// selected currency to show prices in
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum PriceType {
     USD,
     Euro,

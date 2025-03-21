@@ -15,9 +15,12 @@ use ratatui::{
 };
 use ratatui_explorer::FileExplorer;
 
-use crate::app::App;
+use crate::{app::App, database::scryfall::PriceType};
 
-use super::help::{ABOUT_STR, BUG_STR, HELP_STR};
+use super::{
+    help::{ABOUT_STR, BUG_STR, HELP_STR},
+    space_padding,
+};
 
 /// a type alias for terminal type used
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
@@ -527,6 +530,15 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
             .missing_scroll_state
             .content_length(app.missing_lines.len());
         let mut missing_lines = Vec::new();
+        // find longest missing line for padding
+        let mut spacing: usize = 0;
+        for card in app.missing_lines.iter() {
+            let length = card.len(); // NOTE: get character length? card.chars().count()
+            if length > spacing {
+                spacing = length;
+            }
+        }
+        spacing += 5;
         for (i, line_str) in app.missing_lines.iter().enumerate() {
             let price_str =
                 if app.missing_price.is_some() && app.missing_price.as_ref().unwrap().len() >= i {
@@ -536,10 +548,30 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
                 };
             missing_lines.push(Line::from(vec![
                 Span::from(line_str.clone()),
-                Span::from("     "),
+                Span::from(space_padding(spacing - line_str.len())),
                 Span::from(price_str).magenta(),
             ]));
         }
+        // add final total
+        missing_lines.push(Line::from("\n"));
+        // TODO: confirm unwrap is ok here
+        let currency_str = match app.config.currency {
+            PriceType::USD => "$".to_string(),
+            PriceType::Euro => "€".to_string(),
+            PriceType::Tix => "Tix ".to_string(),
+        };
+        missing_lines.push(Line::from(vec![
+            Span::from("Total: ").light_red().bold().underlined(),
+            Span::from(space_padding(spacing - 7)),
+            Span::from(currency_str).light_red().bold().underlined(),
+            Span::from(format!(
+                "{:.2}",
+                app.missing_price_num.as_ref().unwrap().iter().sum::<f64>()
+            ))
+            .light_red()
+            .bold()
+            .underlined(),
+        ]));
         let missing_paragraph = Paragraph::new(missing_lines[app.missing_scroll..].to_vec());
         //.scroll((app.missing_scroll as u16, 0))
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -548,6 +580,18 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         main_block.render(chunk, frame.buffer_mut());
         frame.render_widget(missing_paragraph, inner_area);
         frame.render_stateful_widget(scrollbar, inner_area, &mut app.missing_scroll_state);
+    } else {
+        if app.decklist.is_some() && !app.waiting_for_missing {
+            let missing_paragraph = Paragraph::new("No missing cards!").block(main_block);
+            frame.render_widget(missing_paragraph, chunk);
+        } else if app.decklist.is_some() {
+            let missing_paragraph =
+                Paragraph::new("Checking for missing cards...").block(main_block);
+            frame.render_widget(missing_paragraph, chunk);
+        } else {
+            let missing_paragraph = Paragraph::new("Load a decklist first.").block(main_block);
+            frame.render_widget(missing_paragraph, chunk);
+        }
     }
 }
 

@@ -1,4 +1,2 @@
-export actual numbers from price function
-display total cost
-round price numbers to 2 decimals
-align price numbers?
+Euro prices are borked
+race condition with database loading and missing cards?

@@ -1,2 +1,1 @@
-Euro prices are borked
 race condition with database loading and missing cards?

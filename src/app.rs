@@ -459,7 +459,6 @@ impl App {
                                     let (price_str, price) = if let Some(scryfall_match) =
                                         match_card(&card.name, &database)
                                     {
-                                        // TODO: get price type from config
                                         (
                                             scryfall_match
                                                 .clone()

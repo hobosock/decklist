@@ -94,7 +94,7 @@ impl ScryfallCard {
         };
         if let Some(price) = match price_type {
             PriceType::USD => self.prices.usd,
-            PriceType::Euro => self.prices.euro,
+            PriceType::Euro => self.prices.eur,
             PriceType::Tix => self.prices.tix,
         } {
             match price.parse::<f64>() {
@@ -117,7 +117,7 @@ impl ScryfallCard {
         let mut price = 0.0;
         if let Some(price_str) = match price_type {
             PriceType::USD => self.prices.usd,
-            PriceType::Euro => self.prices.euro,
+            PriceType::Euro => self.prices.eur,
             PriceType::Tix => self.prices.tix,
         } {
             match price_str.parse::<f64>() {
@@ -735,8 +735,8 @@ pub struct ScryfallPrices {
     pub usd: Option<String>,        // Option<f64>,
     pub usd_foil: Option<String>,   // Option<f64>,
     pub usd_etched: Option<String>, // Option<f64>,
-    pub euro: Option<String>,       // Option<f64>,
-    pub euro_foil: Option<String>,  // Option<f64>,
+    pub eur: Option<String>,        // Option<f64>,
+    pub eur_foil: Option<String>,   // Option<f64>,
     pub tix: Option<String>,        // Option<f64>,
 }
 

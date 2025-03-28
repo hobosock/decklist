@@ -160,6 +160,14 @@ pub struct App {
         std::sync::mpsc::Sender<FormatLegal>,
         std::sync::mpsc::Receiver<FormatLegal>,
     ),
+    pub directory_counter: u64,
+    pub config_counter: u64,
+    pub database_counter: u64,
+    pub collection_counter: u64,
+    pub decklist_counter: u64,
+    pub legal_counter: u64,
+    pub missing_counter: u64,
+    pub price_counter: u64,
 }
 
 impl Default for App {
@@ -229,6 +237,14 @@ impl Default for App {
             legal_started: false,
             legal_done: false,
             legal_msg: std::sync::mpsc::channel(),
+            directory_counter: 0,
+            config_counter: 0,
+            database_counter: 0,
+            collection_counter: 0,
+            decklist_counter: 0,
+            legal_counter: 0,
+            missing_counter: 0,
+            price_counter: 0,
         }
     }
 }
@@ -245,6 +261,7 @@ impl App {
         // start new threads to run start up processes
         if !self.startup && !self.dc_started {
             let directory_channel = self.directory_channel.0.clone();
+            self.directory_counter += 1;
             thread::spawn(move || {
                 let directory_results = task::block_on(directory_check());
                 if let Ok(()) = directory_channel.send(directory_results) {};
@@ -270,6 +287,7 @@ impl App {
                 self.debug_string += "starting config check...\n";
                 let project_dir = ProjectDirs::from("", "", "decklist").unwrap();
                 let config_channel = self.config_channel.0.clone();
+                self.config_counter += 1;
                 thread::spawn(move || {
                     let config_results = task::block_on(config_check(project_dir));
                     if let Ok(()) = config_channel.send(config_results) {};
@@ -304,6 +322,7 @@ impl App {
             if self.config_done
                 && self.config.collection_path.is_some()
                 && self.collection.is_none()
+                && !self.loading_collection
             {
                 self.debug_string += "attempting to auto load collection...\n";
                 // if config has a path to a collection and one isn't already loaded, try and load
@@ -317,6 +336,7 @@ impl App {
                     .to_string_lossy()
                     .to_string();
                 self.loading_collection = true;
+                self.collection_counter += 1;
                 thread::spawn(move || {
                     let read_result =
                         task::block_on(read_moxfield_collection(collection_path.clone()));
@@ -346,6 +366,7 @@ impl App {
                     "data directory exists, checking for database on {:?}\n",
                     &dc_path
                 );
+                // TODO: database age check counter?
                 thread::spawn(move || {
                     let database_results = task::block_on(database_check(dc_path, max_age));
                     if let Ok(()) = database_channel.send(database_results) {};
@@ -376,6 +397,7 @@ impl App {
                 let debug_channel = self.debug_channel.0.clone();
                 let data_path = self.dc.database_path.clone();
                 let max_num = self.config.database_num;
+                // TODO: download counter?
                 thread::spawn(move || {
                     let database_results = task::block_on(dl_scryfall_latest(dc_clone));
                     let delete_str = match database_management(data_path, max_num) {
@@ -409,6 +431,7 @@ impl App {
                 self.dc.database_status = format!("Loading {} ...", self.dc.filename);
                 let database_channel = self.database_channel.0.clone();
                 let dc_clone = self.dc.clone();
+                self.database_counter += 1;
                 thread::spawn(move || {
                     let database_results = task::block_on(load_database_file(dc_clone));
                     if let Ok(()) = database_channel.send(database_results) {};
@@ -447,6 +470,7 @@ impl App {
                         let collection = self.collection.clone().unwrap();
                         let decklist = self.decklist.clone().unwrap();
                         let database = self.dc.database_cards.clone();
+                        self.missing_counter += 1;
                         thread::spawn(move || {
                             let missing_cards =
                                 task::block_on(find_missing_cards(collection, decklist));
@@ -487,6 +511,7 @@ impl App {
                         let collection = self.collection.clone().unwrap();
                         let decklist = self.decklist.clone().unwrap();
                         let database = self.dc.database_cards.clone();
+                        self.missing_counter += 1;
                         thread::spawn(move || {
                             let missing_cards =
                                 task::block_on(find_missing_cards(collection, decklist));
@@ -514,6 +539,7 @@ impl App {
                 let decklist = self.decklist.clone().unwrap();
                 let database = self.dc.database_cards.clone().unwrap();
                 let legal_msg = self.legal_msg.0.clone();
+                self.legal_counter += 1;
                 thread::spawn(move || {
                     let legal = task::block_on(check_legality(&decklist, &database));
                     if let Ok(()) = legal_msg.send(legal) {};
@@ -530,7 +556,6 @@ impl App {
             if !self.waiting_for_price
                 && self.dc.database_cards.is_some()
                 && self.missing_cards.is_some()
-                && !self.dc_started
                 && !self.loading_collection
                 && !self.loading_decklist
                 && !self.price_done
@@ -541,6 +566,7 @@ impl App {
                 let currency = self.config.currency.clone();
                 let missing_cards = self.missing_cards.clone().unwrap();
                 let mut missing_scryfall = Vec::new();
+                self.price_counter += 1;
                 thread::spawn(move || {
                     let mut missing_price = Vec::new();
                     for card in missing_cards {
@@ -577,6 +603,7 @@ impl App {
                     self.debug_string += &format!("\n\n{:?}\n\n", price_text.clone());
                     self.missing_price = Some(price_text);
                     self.missing_price_num = Some(price);
+                    self.waiting_for_price = false;
                     self.price_done = true;
                     self.redraw = true;
                 }
@@ -804,6 +831,8 @@ fn s_press(app: &mut App) {
                     let path_string = path_str.unwrap().to_string();
                     let collection_channel = app.collection_channel.0.clone();
                     app.loading_collection = true;
+                    app.missing_cards = None;
+                    app.legality = None;
                     thread::spawn(move || {
                         let read_result =
                             task::block_on(read_moxfield_collection(path_string.clone()));
@@ -839,6 +868,8 @@ fn s_press(app: &mut App) {
                     let path_string = path_str.unwrap().to_string();
                     let decklist_channel = app.decklist_channel.0.clone();
                     app.loading_decklist = true;
+                    app.missing_cards = None;
+                    app.legality = None;
                     thread::spawn(move || {
                         let read_result = read_decklist(path_string.clone());
                         let mut message = DecklistMessage::default();

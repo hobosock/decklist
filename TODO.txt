@@ -1,1 +1,1 @@
-race condition with database loading and missing cards?
+current Scryfall database only has most recent printing price

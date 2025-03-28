@@ -171,6 +171,7 @@ pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -
             || card.layout == CardLayouts::Flip
             || card.layout == CardLayouts::Split
             || card.layout == CardLayouts::ModalDualFaceCard
+            || card.layout == CardLayouts::Adventure
         {
             true
         } else {

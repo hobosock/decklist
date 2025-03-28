@@ -185,10 +185,56 @@ pub fn ui(
 }
 
 fn draw_debug_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: Block) {
-    let debug_text = Paragraph::new(Text::from(app.debug_string.clone()))
-        .wrap(Wrap { trim: true })
-        .block(main_block);
-    frame.render_widget(debug_text, chunk);
+    let sections = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
+        .split(main_block.inner(chunk));
+    let debug_text = Paragraph::new(Text::from(app.debug_string.clone())).wrap(Wrap { trim: true });
+    let counter_paragraph = Paragraph::new(vec![
+        Line::from(vec![
+            Span::from("Directory Check: ").bold(),
+            Span::from(space_padding(6)),
+            Span::from(format!("{}", app.directory_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Config Check: ").bold(),
+            Span::from(space_padding(9)),
+            Span::from(format!("{}", app.config_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Database Check: ").bold(),
+            Span::from(space_padding(7)),
+            Span::from(format!("{}", app.database_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Collection Check: ").bold(),
+            Span::from(space_padding(5)),
+            Span::from(format!("{}", app.collection_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Decklist Check: ").bold(),
+            Span::from(space_padding(7)),
+            Span::from(format!("{}", app.decklist_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Legal Check: ").bold(),
+            Span::from(space_padding(10)),
+            Span::from(format!("{}", app.legal_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Missing Check: ").bold(),
+            Span::from(space_padding(8)),
+            Span::from(format!("{}", app.missing_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Price Check: ").bold(),
+            Span::from(space_padding(10)),
+            Span::from(format!("{}", app.price_counter)).cyan(),
+        ]),
+    ]);
+    frame.render_widget(main_block, chunk);
+    frame.render_widget(debug_text, sections[0]);
+    frame.render_widget(counter_paragraph, sections[1]);
 }
 
 /// draw the main window on the welcome tab
@@ -540,12 +586,14 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         }
         spacing += 5;
         for (i, line_str) in app.missing_lines.iter().enumerate() {
-            let price_str =
-                if app.missing_price.is_some() && app.missing_price.as_ref().unwrap().len() >= i {
-                    app.missing_price.as_ref().unwrap()[i].clone()
-                } else {
-                    "".to_string()
-                };
+            let price_str = if app.price_done
+                && app.missing_price.is_some()
+                && app.missing_price.as_ref().unwrap().len() > i
+            {
+                app.missing_price.as_ref().unwrap()[i].clone()
+            } else {
+                "".to_string()
+            };
             missing_lines.push(Line::from(vec![
                 Span::from(line_str.clone()),
                 Span::from(space_padding(spacing - line_str.len())),

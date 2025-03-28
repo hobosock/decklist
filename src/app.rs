@@ -124,6 +124,8 @@ pub struct App {
         std::sync::mpsc::Receiver<(Vec<String>, Vec<f64>)>,
     ),
     pub waiting_for_missing: bool,
+    pub waiting_for_price: bool,
+    pub price_done: bool,
     pub missing_scroll: usize,
     pub missing_scroll_state: ScrollbarState,
     pub collection_scroll: usize,
@@ -203,6 +205,8 @@ impl Default for App {
             missing_check_msg: std::sync::mpsc::channel(),
             missing_scryfall_msg: std::sync::mpsc::channel(),
             waiting_for_missing: false,
+            waiting_for_price: false,
+            price_done: false,
             missing_scroll: 0,
             missing_scroll_state: ScrollbarState::default(),
             collection_scroll: 0,
@@ -435,47 +439,27 @@ impl App {
                     self.loading_collection = false;
                     if self.collection.is_some()
                         && self.decklist.is_some()
-                        && self.dc.database_cards.is_some()
                         && !self.waiting_for_missing
                     {
                         self.debug_string += "starting missing cards thread...\n";
                         let missing_channel = self.missing_msg.0.clone();
                         let check_channel = self.missing_check_msg.0.clone();
-                        let price_channel = self.missing_scryfall_msg.0.clone();
                         let collection = self.collection.clone().unwrap();
                         let decklist = self.decklist.clone().unwrap();
-                        let database = self.dc.database_cards.clone().unwrap();
-                        let currency = self.config.currency.clone();
+                        let database = self.dc.database_cards.clone();
                         thread::spawn(move || {
                             let missing_cards =
                                 task::block_on(find_missing_cards(collection, decklist));
                             let mut checks = Vec::new();
                             if missing_cards.is_some() {
-                                let mut missing_scryfall = Vec::new();
-                                let mut missing_price = Vec::new();
                                 for card in missing_cards.as_ref().unwrap() {
-                                    let missing_str = check_missing(&database, card);
-                                    checks.push(format!("{}{}", card, missing_str));
-                                    let (price_str, price) = if let Some(scryfall_match) =
-                                        match_card(&card.name, &database)
-                                    {
-                                        (
-                                            scryfall_match
-                                                .clone()
-                                                .price_to_string(card.quantity, currency.clone()),
-                                            scryfall_match
-                                                .get_price(card.quantity, currency.clone()),
-                                        )
+                                    let missing_str = if database.is_some() {
+                                        check_missing(database.as_ref().unwrap(), card)
                                     } else {
-                                        ("".to_string(), 0.0)
+                                        "".to_string()
                                     };
-                                    missing_scryfall.push(price_str);
-                                    missing_price.push(price);
+                                    checks.push(format!("{}{}", card, missing_str));
                                 }
-                                if let Ok(()) =
-                                    price_channel.send((missing_scryfall, missing_price))
-                                {
-                                };
                             }
                             if let Ok(()) = check_channel.send(checks) {};
                             if let Ok(()) = missing_channel.send(missing_cards) {};
@@ -495,48 +479,27 @@ impl App {
                     self.loading_decklist = false;
                     if self.collection.is_some()
                         && self.decklist.is_some()
-                        && self.dc.database_cards.is_some()
                         && !self.waiting_for_missing
                     {
                         self.debug_string += "starting missing cards thread...\n";
                         let missing_channel = self.missing_msg.0.clone();
                         let check_channel = self.missing_check_msg.0.clone();
-                        let price_channel = self.missing_scryfall_msg.0.clone();
                         let collection = self.collection.clone().unwrap();
                         let decklist = self.decklist.clone().unwrap();
-                        let database = self.dc.database_cards.clone().unwrap();
-                        let currency = self.config.currency.clone();
+                        let database = self.dc.database_cards.clone();
                         thread::spawn(move || {
                             let missing_cards =
                                 task::block_on(find_missing_cards(collection, decklist));
                             let mut checks = Vec::new();
                             if missing_cards.is_some() {
-                                let mut missing_scryfall = Vec::new();
-                                let mut missing_price = Vec::new();
                                 for card in missing_cards.as_ref().unwrap() {
-                                    let missing_str = check_missing(&database, card);
-                                    checks.push(format!("{}{}", card, missing_str));
-                                    let (price_str, price) = if let Some(scryfall_match) =
-                                        match_card(&card.name, &database)
-                                    {
-                                        // TODO: get price type from config
-                                        (
-                                            scryfall_match
-                                                .clone()
-                                                .price_to_string(card.quantity, currency.clone()),
-                                            scryfall_match
-                                                .get_price(card.quantity, currency.clone()),
-                                        )
+                                    let missing_str = if database.is_some() {
+                                        check_missing(database.as_ref().unwrap(), card)
                                     } else {
-                                        ("".to_string(), 0.0)
+                                        "".to_string()
                                     };
-                                    missing_scryfall.push(price_str);
-                                    missing_price.push(price);
+                                    checks.push(format!("{}{}", card, missing_str));
                                 }
-                                if let Ok(()) =
-                                    price_channel.send((missing_scryfall, missing_price))
-                                {
-                                };
                             }
                             if let Ok(()) = check_channel.send(checks) {};
                             if let Ok(()) = missing_channel.send(missing_cards) {};
@@ -564,6 +527,40 @@ impl App {
                 }
                 self.redraw = true;
             }
+            if !self.waiting_for_price
+                && self.dc.database_cards.is_some()
+                && self.missing_cards.is_some()
+                && !self.dc_started
+                && !self.loading_collection
+                && !self.loading_decklist
+                && !self.price_done
+            {
+                self.waiting_for_price = true;
+                let price_channel = self.missing_scryfall_msg.0.clone();
+                let database = self.dc.database_cards.clone().unwrap();
+                let currency = self.config.currency.clone();
+                let missing_cards = self.missing_cards.clone().unwrap();
+                let mut missing_scryfall = Vec::new();
+                thread::spawn(move || {
+                    let mut missing_price = Vec::new();
+                    for card in missing_cards {
+                        let (price_str, price) =
+                            if let Some(scryfall_match) = match_card(&card.name, &database) {
+                                (
+                                    scryfall_match
+                                        .clone()
+                                        .price_to_string(card.quantity, currency.clone()),
+                                    scryfall_match.get_price(card.quantity, currency.clone()),
+                                )
+                            } else {
+                                ("".to_string(), 0.0)
+                            };
+                        missing_scryfall.push(price_str);
+                        missing_price.push(price);
+                    }
+                    if let Ok(()) = price_channel.send((missing_scryfall, missing_price)) {};
+                });
+            }
             if self.waiting_for_missing {
                 if let Ok(missing_cards) = self.missing_msg.1.try_recv() {
                     self.debug_string += "received missing message\n";
@@ -574,10 +571,14 @@ impl App {
                     self.missing_lines = missing_text;
                     self.waiting_for_missing = false;
                 }
+            }
+            if self.waiting_for_price {
                 if let Ok((price_text, price)) = self.missing_scryfall_msg.1.try_recv() {
                     self.debug_string += &format!("\n\n{:?}\n\n", price_text.clone());
                     self.missing_price = Some(price_text);
                     self.missing_price_num = Some(price);
+                    self.price_done = true;
+                    self.redraw = true;
                 }
             }
             if self.redraw {
@@ -791,6 +792,7 @@ fn s_press(app: &mut App) {
                         app.dc.ready_load = true;
                         app.load_started = false;
                         app.load_done = false;
+                        app.price_done = false;
                     }
                 }
             }
@@ -822,6 +824,9 @@ fn s_press(app: &mut App) {
                         }
                         if let Ok(()) = collection_channel.send(message) {};
                     });
+                    app.legal_done = false;
+                    app.legal_started = false;
+                    app.price_done = false;
                 } else {
                     app.collection_status = "Encountered error with file path.".to_string();
                 }
@@ -851,6 +856,7 @@ fn s_press(app: &mut App) {
                     });
                     app.legal_done = false;
                     app.legal_started = false;
+                    app.price_done = false;
                 }
             }
         }

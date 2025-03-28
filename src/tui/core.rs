@@ -554,7 +554,6 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         }
         // add final total
         missing_lines.push(Line::from("\n"));
-        // TODO: confirm unwrap is ok here
         let currency_str = match app.config.currency {
             PriceType::USD => "$".to_string(),
             PriceType::Euro => "€".to_string(),
@@ -566,7 +565,11 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
             Span::from(currency_str).light_red().bold().underlined(),
             Span::from(format!(
                 "{:.2}",
-                app.missing_price_num.as_ref().unwrap().iter().sum::<f64>()
+                app.missing_price_num
+                    .as_ref()
+                    .unwrap_or(&vec![0.0]) // TODO: this unwrap is lazy
+                    .iter()
+                    .sum::<f64>()
             ))
             .light_red()
             .bold()

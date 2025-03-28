@@ -167,20 +167,13 @@ pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -
     let mut found = false;
     for card in database.iter() {
         // NOTE: dual/split/transform card names are tricky - match on a partial
-        let dual = if card.layout == CardLayouts::Transform
+        let dual = card.layout == CardLayouts::Transform
             || card.layout == CardLayouts::Flip
             || card.layout == CardLayouts::Split
             || card.layout == CardLayouts::ModalDualFaceCard
-            || card.layout == CardLayouts::Adventure
-        {
-            true
-        } else {
-            false
-        };
+            || card.layout == CardLayouts::Adventure;
         if remove_diacritics(&missing_card.name) == remove_diacritics(&card.name)
-            || (remove_diacritics(&card.name)
-                .find(&remove_diacritics(&missing_card.name))
-                .is_some()
+            || (remove_diacritics(&card.name).contains(&remove_diacritics(&missing_card.name))
                 && dual)
         {
             found = true;

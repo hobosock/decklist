@@ -785,20 +785,12 @@ pub fn match_card(cardname: &str, database: &[ScryfallCard]) -> Option<ScryfallC
     let mut found = None;
     for card in database.iter() {
         // NOTE: dual/split/transform card names are tricky - match on a partial
-        let dual = if card.layout == CardLayouts::Transform
+        let dual = card.layout == CardLayouts::Transform
             || card.layout == CardLayouts::Flip
             || card.layout == CardLayouts::Split
-            || card.layout == CardLayouts::ModalDualFaceCard
-        {
-            true
-        } else {
-            false
-        };
+            || card.layout == CardLayouts::ModalDualFaceCard;
         if remove_diacritics(cardname) == remove_diacritics(&card.name)
-            || (remove_diacritics(&card.name)
-                .find(&remove_diacritics(cardname))
-                .is_some()
-                && dual)
+            || (remove_diacritics(&card.name).contains(&remove_diacritics(cardname)) && dual)
         {
             found = Some(card.clone());
             break;

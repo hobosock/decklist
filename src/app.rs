@@ -444,11 +444,7 @@ impl App {
                     self.dc = dc;
                     self.load_done = true;
                     self.load_started = false;
-                    if self.dc.database_cards.is_some() {
-                        self.database_ok = true;
-                    } else {
-                        self.database_ok = false;
-                    }
+                    self.database_ok = self.dc.database_cards.is_some();
                     self.redraw = true;
                 }
             }
@@ -978,15 +974,14 @@ fn f_press(app: &mut App) {
                 }
                 if let Some(missing_directory) = app.decklist_file.as_ref().unwrap().path().parent()
                 {
-                    let missing_filename = missing_directory.to_path_buf().join(&format!(
+                    let missing_filename = missing_directory.to_path_buf().join(format!(
                         "missing_{}",
                         app.decklist_file_name.as_ref().unwrap()
                     ));
                     app.debug_string += &format!("missing filename: {:?}\n", missing_filename);
                     match fs::write(missing_filename, file_string) {
                         Ok(()) => {
-                            app.debug_string +=
-                                &format!("Successfully wrote missing cards to file.\n")
+                            app.debug_string += "Successfully wrote missing cards to file.\n";
                         }
                         Err(e) => {
                             app.debug_string +=

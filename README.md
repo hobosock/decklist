@@ -29,6 +29,12 @@ Decklist features can be configured using the **config.toml** file in the user's
 **database_age_limit** - Maximum age of database file (in days) before Decklist downloads a new one.  The process is pretty quick, but it doesn't need to be that frequent, new cards are only added every so often.
 **database_num** - The number of database files to keep.  Decklist keeps 3 around by default in case the latest file has breaking changes to the API.  You can manually load an older file from the **Database** tab.  Decklist will automatically delete old files beyond this number.
 **collection_path** This is the path to your collection file that Decklist will attempt to load automatically on startup.  This can be updated from within the program when successfully loading a collection file in the **Collection** tab.
+**currency** - Preferred currency to display prices in.  Valid options are `USD`, `Euro`, `Tix`
+
+### Quick note about the prices:
+All price data in Decklist comes from the Scryfall database.  That information already comes with a disclaimer, as Scryfall updates prices roughly once a day.  Decklist downloads a new database every 7 days by default, so price information displayed in the program is only meant as a general reference and won't be up-to-the-minute accurate.
+
+Also, Decklist currently uses the smallest complete database Scryfall offers, which only contains a single instance of each card.  If a card has multiple printings, Decklist will only have access to the cost of one of those printings which may not have the cheapest price, or any price data at all.  This may be fixed in a future release, but will require significant change under the hood and require downloading larger database files.
 
 ## Installation
 ### Binaries

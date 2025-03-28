@@ -3,6 +3,8 @@ use std::path::Path;
 use directories_next::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
+use crate::database::scryfall::PriceType;
+
 /// app config settings
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DecklistConfig {
@@ -11,6 +13,7 @@ pub struct DecklistConfig {
     pub database_age_limit: u64, // age in days before a new database file is downloaded
     pub database_num: u64,  // number of database files to keep around
     pub collection_path: Option<Box<Path>>, // path to latest collection file
+    pub currency: PriceType,
 }
 
 impl Default for DecklistConfig {
@@ -25,6 +28,7 @@ impl Default for DecklistConfig {
             database_age_limit: 7,
             database_num: 3,
             collection_path: None,
+            currency: PriceType::USD,
         }
     }
 }

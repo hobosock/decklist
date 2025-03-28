@@ -1,7 +1,7 @@
 use std::{error::Error, fs, path::PathBuf};
 
 use diacritics::remove_diacritics;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// structure for all Scryfall card data for a unique card
 // TODO: map to JSON field names manually?  or rename?
@@ -83,6 +83,50 @@ pub struct ScryfallCard {
     pub related_uris: ScryfallRelated,
     #[serde(default)]
     pub purchase_uris: ScryfallPurchase,
+}
+
+impl ScryfallCard {
+    pub fn price_to_string(self, quantity: u64, price_type: PriceType) -> String {
+        let currency_str = match price_type {
+            PriceType::USD => "$".to_string(),
+            PriceType::Euro => "€".to_string(),
+            PriceType::Tix => "Tix ".to_string(),
+        };
+        if let Some(price) = match price_type {
+            PriceType::USD => self.prices.usd,
+            PriceType::Euro => self.prices.eur,
+            PriceType::Tix => self.prices.tix,
+        } {
+            match price.parse::<f64>() {
+                Ok(price_num) => {
+                    format!(
+                        "[{:.2}] x{} = {}{:.2}",
+                        price_num,
+                        quantity,
+                        currency_str,
+                        price_num * quantity as f64
+                    )
+                }
+                Err(_e) => price,
+            }
+        } else {
+            "".to_string()
+        }
+    }
+    pub fn get_price(self, quantity: u64, price_type: PriceType) -> f64 {
+        let mut price = 0.0;
+        if let Some(price_str) = match price_type {
+            PriceType::USD => self.prices.usd,
+            PriceType::Euro => self.prices.eur,
+            PriceType::Tix => self.prices.tix,
+        } {
+            match price_str.parse::<f64>() {
+                Ok(price_num) => price = price_num,
+                Err(_e) => {}
+            }
+        };
+        price * quantity as f64
+    }
 }
 
 /// represents different kinds of Scryfall objects
@@ -691,9 +735,17 @@ pub struct ScryfallPrices {
     pub usd: Option<String>,        // Option<f64>,
     pub usd_foil: Option<String>,   // Option<f64>,
     pub usd_etched: Option<String>, // Option<f64>,
-    pub euro: Option<String>,       // Option<f64>,
-    pub euro_foil: Option<String>,  // Option<f64>,
+    pub eur: Option<String>,        // Option<f64>,
+    pub eur_foil: Option<String>,   // Option<f64>,
     pub tix: Option<String>,        // Option<f64>,
+}
+
+/// selected currency to show prices in
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub enum PriceType {
+    USD,
+    Euro,
+    Tix,
 }
 
 /// struct of all of Scryfall's related URIs
@@ -733,20 +785,12 @@ pub fn match_card(cardname: &str, database: &[ScryfallCard]) -> Option<ScryfallC
     let mut found = None;
     for card in database.iter() {
         // NOTE: dual/split/transform card names are tricky - match on a partial
-        let dual = if card.layout == CardLayouts::Transform
+        let dual = card.layout == CardLayouts::Transform
             || card.layout == CardLayouts::Flip
             || card.layout == CardLayouts::Split
-            || card.layout == CardLayouts::ModalDualFaceCard
-        {
-            true
-        } else {
-            false
-        };
+            || card.layout == CardLayouts::ModalDualFaceCard;
         if remove_diacritics(cardname) == remove_diacritics(&card.name)
-            || (remove_diacritics(&card.name)
-                .find(&remove_diacritics(cardname))
-                .is_some()
-                && dual)
+            || (remove_diacritics(&card.name).contains(&remove_diacritics(cardname)) && dual)
         {
             found = Some(card.clone());
             break;

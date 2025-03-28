@@ -15,9 +15,12 @@ use ratatui::{
 };
 use ratatui_explorer::FileExplorer;
 
-use crate::app::App;
+use crate::{app::App, database::scryfall::PriceType};
 
-use super::help::{ABOUT_STR, BUG_STR, HELP_STR};
+use super::{
+    help::{ABOUT_STR, BUG_STR, HELP_STR},
+    space_padding,
+};
 
 /// a type alias for terminal type used
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
@@ -83,7 +86,7 @@ pub fn ui(
 
     // define main/center area for display
     let version =
-        Line::from(vec!["| Decklist v0.2.0 |".into()]).style(Style::default().cyan().bold());
+        Line::from(vec!["| Decklist v0.3.0 |".into()]).style(Style::default().cyan().bold());
     let main_block = Block::default()
         .title_bottom(version)
         .title_alignment(Alignment::Center)
@@ -182,10 +185,56 @@ pub fn ui(
 }
 
 fn draw_debug_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: Block) {
-    let debug_text = Paragraph::new(Text::from(app.debug_string.clone()))
-        .wrap(Wrap { trim: true })
-        .block(main_block);
-    frame.render_widget(debug_text, chunk);
+    let sections = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
+        .split(main_block.inner(chunk));
+    let debug_text = Paragraph::new(Text::from(app.debug_string.clone())).wrap(Wrap { trim: true });
+    let counter_paragraph = Paragraph::new(vec![
+        Line::from(vec![
+            Span::from("Directory Check: ").bold(),
+            Span::from(space_padding(6)),
+            Span::from(format!("{}", app.directory_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Config Check: ").bold(),
+            Span::from(space_padding(9)),
+            Span::from(format!("{}", app.config_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Database Check: ").bold(),
+            Span::from(space_padding(7)),
+            Span::from(format!("{}", app.database_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Collection Check: ").bold(),
+            Span::from(space_padding(5)),
+            Span::from(format!("{}", app.collection_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Decklist Check: ").bold(),
+            Span::from(space_padding(7)),
+            Span::from(format!("{}", app.decklist_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Legal Check: ").bold(),
+            Span::from(space_padding(10)),
+            Span::from(format!("{}", app.legal_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Missing Check: ").bold(),
+            Span::from(space_padding(8)),
+            Span::from(format!("{}", app.missing_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Price Check: ").bold(),
+            Span::from(space_padding(10)),
+            Span::from(format!("{}", app.price_counter)).cyan(),
+        ]),
+    ]);
+    frame.render_widget(main_block, chunk);
+    frame.render_widget(debug_text, sections[0]);
+    frame.render_widget(counter_paragraph, sections[1]);
 }
 
 /// draw the main window on the welcome tab
@@ -527,9 +576,53 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
             .missing_scroll_state
             .content_length(app.missing_lines.len());
         let mut missing_lines = Vec::new();
-        for line in app.missing_lines.iter() {
-            missing_lines.push(Line::from(line.clone()));
+        // find longest missing line for padding
+        let mut spacing: usize = 0;
+        for card in app.missing_lines.iter() {
+            let length = card.len(); // NOTE: get character length? card.chars().count()
+            if length > spacing {
+                spacing = length;
+            }
         }
+        spacing += 5;
+        for (i, line_str) in app.missing_lines.iter().enumerate() {
+            let price_str = if app.price_done
+                && app.missing_price.is_some()
+                && app.missing_price.as_ref().unwrap().len() > i
+            {
+                app.missing_price.as_ref().unwrap()[i].clone()
+            } else {
+                "".to_string()
+            };
+            missing_lines.push(Line::from(vec![
+                Span::from(line_str.clone()),
+                Span::from(space_padding(spacing - line_str.len())),
+                Span::from(price_str).magenta(),
+            ]));
+        }
+        // add final total
+        missing_lines.push(Line::from("\n"));
+        let currency_str = match app.config.currency {
+            PriceType::USD => "$".to_string(),
+            PriceType::Euro => "€".to_string(),
+            PriceType::Tix => "Tix ".to_string(),
+        };
+        missing_lines.push(Line::from(vec![
+            Span::from("Total: ").light_red().bold().underlined(),
+            Span::from(space_padding(spacing - 7)),
+            Span::from(currency_str).light_red().bold().underlined(),
+            Span::from(format!(
+                "{:.2}",
+                app.missing_price_num
+                    .as_ref()
+                    .unwrap_or(&vec![0.0]) // TODO: this unwrap is lazy
+                    .iter()
+                    .sum::<f64>()
+            ))
+            .light_red()
+            .bold()
+            .underlined(),
+        ]));
         let missing_paragraph = Paragraph::new(missing_lines[app.missing_scroll..].to_vec());
         //.scroll((app.missing_scroll as u16, 0))
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -538,6 +631,18 @@ fn draw_missing_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: 
         main_block.render(chunk, frame.buffer_mut());
         frame.render_widget(missing_paragraph, inner_area);
         frame.render_stateful_widget(scrollbar, inner_area, &mut app.missing_scroll_state);
+    } else {
+        if app.decklist.is_some() && !app.waiting_for_missing {
+            let missing_paragraph = Paragraph::new("No missing cards!").block(main_block);
+            frame.render_widget(missing_paragraph, chunk);
+        } else if app.decklist.is_some() {
+            let missing_paragraph =
+                Paragraph::new("Checking for missing cards...").block(main_block);
+            frame.render_widget(missing_paragraph, chunk);
+        } else {
+            let missing_paragraph = Paragraph::new("Load a decklist first.").block(main_block);
+            frame.render_widget(missing_paragraph, chunk);
+        }
     }
 }
 

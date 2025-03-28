@@ -262,7 +262,7 @@ async fn scryfall_bulk_request(
     // first request gets URI for latest data
     let resp: ScryfallResponse = scryfall_agent
         .get("https://api.scryfall.com/bulk-data/oracle-cards")
-        .header("User-Agent", "decklistv0.2.0")
+        .header("User-Agent", "decklistv0.3.0")
         .header("Accept", "*/*")
         .call()?
         .body_mut()
@@ -277,7 +277,7 @@ async fn scryfall_bulk_request(
     // second request downloads JSON file to user data directory
     let download_request = scryfall_agent
         .get(uri)
-        .header("User-Agent", "decklistv0.2.0")
+        .header("User-Agent", "decklistv0.3.0")
         .header("Accept", "application/file")
         .call()?
         .body_mut()

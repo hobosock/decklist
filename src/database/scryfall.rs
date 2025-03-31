@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct ScryfallCard {
     pub object: ScryfallObject,
     pub id: String,
-    pub oracle_id: String,
+    pub oracle_id: Option<String>,
     pub multiverse_ids: Vec<i64>,
     #[serde(default)]
     pub mtgo_id: i64,
@@ -32,8 +32,8 @@ pub struct ScryfallCard {
     pub image_uris: ImageUris,
     #[serde(default)]
     pub mana_cost: String, // i64,
-    pub cmc: f64,
-    pub type_line: String, // Vec<CardTypes>,
+    pub cmc: Option<f64>,
+    pub type_line: Option<String>, // Vec<CardTypes>,
     #[serde(default)]
     pub oracle_text: String,
     pub colors: Option<Vec<MtGColors>>,
@@ -145,6 +145,38 @@ pub enum Languages {
     English,
     #[serde(rename = "ja")]
     Japanese,
+    #[serde(rename = "fr")]
+    French,
+    #[serde(rename = "es")]
+    Spanish,
+    #[serde(rename = "it")]
+    Italian,
+    #[serde(rename = "de")]
+    German,
+    #[serde(rename = "pt")]
+    Portuguese,
+    #[serde(rename = "ko")]
+    Korean,
+    #[serde(rename = "ru")]
+    Russian,
+    #[serde(rename = "zhs")]
+    SimplifiedChinese,
+    #[serde(rename = "zht")]
+    TraditionalChinese,
+    #[serde(rename = "he")]
+    Hebrew,
+    #[serde(rename = "la")]
+    Latin,
+    #[serde(rename = "grc")]
+    AncientGreek,
+    #[serde(rename = "ar")]
+    Arabic,
+    #[serde(rename = "sa")]
+    Sanskrit,
+    #[serde(rename = "ph")]
+    Phyrexian,
+    #[serde(rename = "qya")]
+    Quenya,
 }
 
 /// different card layout options
@@ -194,6 +226,10 @@ pub enum CardLayouts {
     Leveler,
     #[serde(rename = "case")]
     Case,
+    #[serde(rename = "reversible_card")]
+    Reversible,
+    #[serde(rename = "battle")]
+    Battle,
 }
 
 /// scryfall image statuses
@@ -205,6 +241,8 @@ pub enum ImageStatus {
     LowRes,
     #[serde(rename = "missing")]
     Missing,
+    #[serde(rename = "placeholder")]
+    Placeholder,
 }
 
 /// struct for all Scryfall image uris
@@ -695,6 +733,12 @@ pub enum ScryfallSetType {
     Arsenal,
     #[serde(rename = "treasure_chest")]
     TreasureChest,
+    #[serde(rename = "premium_deck")]
+    PremiumDeck,
+    #[serde(rename = "from_the_vault")]
+    FromTheVault,
+    #[serde(rename = "spellbook")]
+    Spellbook,
 }
 
 /// card rarities
@@ -727,6 +771,8 @@ pub enum BorderColor {
     Borderless,
     #[serde(rename = "gold")]
     Gold,
+    #[serde(rename = "yellow")]
+    Yellow,
 }
 
 /// Scryfall prices struct
@@ -797,4 +843,62 @@ pub fn match_card(cardname: &str, database: &[ScryfallCard]) -> Option<ScryfallC
         }
     }
     found
+}
+
+/// This function finds every matching Scryfall object in the database file
+/// This is slower than match_card(), where you only care to check if the card name exists.
+/// Finding all matches is necessary to provide a price for every card, since some listings do not
+/// have any price information.
+pub fn find_all_objs(cardname: &str, database: &[ScryfallCard]) -> Option<Vec<ScryfallCard>> {
+    let mut matches = Vec::new();
+    for card in database.iter() {
+        let dual = card.layout == CardLayouts::Transform
+            || card.layout == CardLayouts::Flip
+            || card.layout == CardLayouts::Split
+            || card.layout == CardLayouts::ModalDualFaceCard;
+        if remove_diacritics(cardname) == remove_diacritics(&card.name)
+            || (remove_diacritics(&card.name).contains(&remove_diacritics(cardname)) && dual)
+        {
+            matches.push(card.clone());
+        }
+    }
+    if !matches.is_empty() {
+        Some(matches)
+    } else {
+        None
+    }
+}
+
+pub fn get_min_price(cards: &[ScryfallCard], currency: PriceType) -> f64 {
+    let mut price = 0.0;
+    for card in cards.iter() {
+        if let Some(price_str) = match currency {
+            PriceType::USD => card.prices.usd.clone(),
+            PriceType::Euro => card.prices.eur.clone(),
+            PriceType::Tix => card.prices.tix.clone(),
+        } {
+            let price_float = price_str.parse::<f64>().unwrap_or(0.0);
+            if price == 0.0 && price_float > 0.0 {
+                price = price_float;
+            } else if price_float > 0.0 && price_float < price {
+                price = price_float;
+            }
+        }
+    }
+    price
+}
+
+pub fn min_price_fmt(price: f64, quantity: u64, currency: PriceType) -> String {
+    let currency_str = match currency {
+        PriceType::USD => "$".to_string(),
+        PriceType::Euro => "€".to_string(),
+        PriceType::Tix => "Tix ".to_string(),
+    };
+    format!(
+        "[{:2}] x{} = {}{:.2}",
+        price,
+        quantity,
+        currency_str,
+        price * quantity as f64
+    )
 }

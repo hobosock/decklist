@@ -1,6 +1,6 @@
 use crate::{
     collection::{check_legality, check_missing, FormatLegal},
-    database::scryfall::match_card,
+    database::scryfall::{find_all_objs, get_min_price, min_price_fmt},
     startup::{
         config_check, database_check, database_management, directory_check, dl_scryfall_latest,
         load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
@@ -567,12 +567,11 @@ impl App {
                     let mut missing_price = Vec::new();
                     for card in missing_cards {
                         let (price_str, price) =
-                            if let Some(scryfall_match) = match_card(&card.name, &database) {
+                            if let Some(scryfall_match) = find_all_objs(&card.name, &database) {
+                                let price = get_min_price(&scryfall_match, currency.clone());
                                 (
-                                    scryfall_match
-                                        .clone()
-                                        .price_to_string(card.quantity, currency.clone()),
-                                    scryfall_match.get_price(card.quantity, currency.clone()),
+                                    min_price_fmt(price, card.quantity, currency.clone()),
+                                    price * card.quantity as f64,
                                 )
                             } else {
                                 ("".to_string(), 0.0)

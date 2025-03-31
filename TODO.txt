@@ -1,1 +1,0 @@
-current Scryfall database only has most recent printing price

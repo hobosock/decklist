@@ -201,7 +201,7 @@ fn find_scryfall_database(data_path: PathBuf) -> Option<(String, u64)> {
     for item in items {
         if let Ok(f) = item {
             let f_str = f.file_name().into_string();
-            if f_str.is_ok() && f_str.as_ref().unwrap().contains("oracle-cards") {
+            if f_str.is_ok() && f_str.as_ref().unwrap().contains("default-cards") {
                 let f_string = f_str.unwrap();
                 options.push(f_string.clone());
                 let sections: Vec<&str> = f_string.split("-").collect();

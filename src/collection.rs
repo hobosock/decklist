@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     error::Error,
     fmt::Display,
     fs::{self, File},
@@ -163,7 +164,10 @@ pub async fn find_missing_cards(
 
 /// compares missing card to Scryfall database (if included)
 /// if the card isn't found in the database, prompt the user to check the spelling
-pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -> String {
+pub fn check_missing(
+    database: &HashMap<String, ScryfallCard>,
+    missing_card: &CollectionCard,
+) -> String {
     let mut found = false;
     for card in database.iter() {
         // NOTE: dual/split/transform card names are tricky - match on a partial

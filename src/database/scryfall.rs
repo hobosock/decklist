@@ -1,4 +1,4 @@
-use std::{error::Error, fs, path::PathBuf};
+use std::{collections::HashMap, error::Error, fs, path::PathBuf};
 
 use diacritics::remove_diacritics;
 use serde::{Deserialize, Serialize};
@@ -817,10 +817,25 @@ pub struct ScryfallPurchase {
 }
 
 /// reads provided JSON database file and produces a vector of ScryfallCard objects
-pub fn read_scryfall_database(path: &PathBuf) -> Result<Vec<ScryfallCard>, Box<dyn Error>> {
+pub fn read_scryfall_database(
+    path: &PathBuf,
+) -> Result<HashMap<String, ScryfallCard>, Box<dyn Error>> {
     let file_text = fs::read_to_string(path)?;
     let test: Result<Vec<ScryfallCard>, serde_json::Error> = serde_json::from_str(&file_text);
-    Ok(test?)
+    let card_vec = test?;
+    let mut result_map: HashMap<String, ScryfallCard> = HashMap::new();
+    for card in &card_vec {
+        // TODO: get all currencies in here
+        result_map
+            .entry(card.name.clone())
+            .and_modify(|existing| {
+                if card.prices.usd < existing.prices.usd {
+                    *existing = card.clone();
+                }
+            })
+            .or_insert(card.clone());
+    }
+    Ok(result_map)
 }
 
 // TODO: maybe replace the manual implementations of this elsewhere?

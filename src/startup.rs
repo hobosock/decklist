@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     error::Error,
     fs::{self, create_dir},
     io::ErrorKind,
@@ -108,7 +109,7 @@ pub async fn config_check(project_dir: ProjectDirs) -> ConfigCheck {
 pub struct DatabaseCheck {
     pub database_exists: bool,
     pub database_status: String,
-    pub database_cards: Option<Vec<ScryfallCard>>,
+    pub database_cards: HashMap<String, ScryfallCard>,
     pub database_path: PathBuf,
     pub filename: String,
     pub need_dl: bool,
@@ -120,7 +121,7 @@ impl Default for DatabaseCheck {
         DatabaseCheck {
             database_exists: false,
             database_status: "Waiting on startup checks...".to_string(),
-            database_cards: None,
+            database_cards: HashMap::new(),
             database_path: PathBuf::new(),
             filename: String::new(),
             need_dl: false,
@@ -136,7 +137,7 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
     let mut ready_load = false;
     let mut database_exists = false;
     let database_status;
-    let database_cards = None;
+    let database_cards = HashMap::new();
     let mut filename = String::new();
     if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
         let current_time: DateTime<Local> = Local::now();
@@ -182,7 +183,7 @@ pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
         Ok(cards) => {
             dc.database_exists = true;
             dc.database_status = format!("Loaded cards from: {}", dc.filename);
-            dc.database_cards = Some(cards);
+            dc.database_cards = cards;
             dc.ready_load = false; // file loaded successfully, don't need to do again
         }
         Err(e) => dc.database_status = e.to_string(),

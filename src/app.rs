@@ -444,7 +444,7 @@ impl App {
                     self.dc = dc;
                     self.load_done = true;
                     self.load_started = false;
-                    self.database_ok = self.dc.database_cards.is_some();
+                    self.database_ok = !self.dc.database_cards.is_empty();
                     self.redraw = true;
                 }
             }
@@ -473,8 +473,8 @@ impl App {
                             let mut checks = Vec::new();
                             if missing_cards.is_some() {
                                 for card in missing_cards.as_ref().unwrap() {
-                                    let missing_str = if database.is_some() {
-                                        check_missing(database.as_ref().unwrap(), card)
+                                    let missing_str = if !database.is_empty() {
+                                        check_missing(&database, card)
                                     } else {
                                         "".to_string()
                                     };

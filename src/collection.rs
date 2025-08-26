@@ -196,7 +196,6 @@ pub struct FormatLegal {
     pub timeless: bool,
     pub gladiator: bool,
     pub pioneer: bool,
-    pub explorer: bool,
     pub modern: bool,
     pub legacy: bool,
     pub pauper: bool,
@@ -223,7 +222,6 @@ impl Default for FormatLegal {
             timeless: true,
             gladiator: true,
             pioneer: true,
-            explorer: true,
             modern: true,
             legacy: true,
             pauper: true,
@@ -277,9 +275,6 @@ pub async fn check_legality(decklist: &[CollectionCard], database: &[ScryfallCar
             }
             if legal.pioneer {
                 legal.pioneer = convert_legal(matched.legalities.pioneer);
-            }
-            if legal.explorer {
-                legal.explorer = convert_legal(matched.legalities.explorer);
             }
             if legal.modern {
                 legal.modern = convert_legal(matched.legalities.modern);

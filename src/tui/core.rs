@@ -86,7 +86,7 @@ pub fn ui(
 
     // define main/center area for display
     let version =
-        Line::from(vec!["| Decklist v0.3.1 |".into()]).style(Style::default().cyan().bold());
+        Line::from(vec!["| Decklist v0.3.2 |".into()]).style(Style::default().cyan().bold());
     let main_block = Block::default()
         .title_bottom(version)
         .title_alignment(Alignment::Center)
@@ -436,11 +436,6 @@ fn draw_decklist_main(
             } else {
                 Span::from("NOT LEGAL").red()
             };
-            let explorer_text = if fl.explorer {
-                Span::from("LEGAL").green()
-            } else {
-                Span::from("NOT LEGAL").red()
-            };
             let modern_text = if fl.modern {
                 Span::from("LEGAL").green()
             } else {
@@ -531,7 +526,6 @@ fn draw_decklist_main(
                     Span::from("Pauper Commander: ").bold(),
                     pauper_commander_text,
                 ]),
-                Line::from(vec![Span::from("Explorer: ").bold(), explorer_text]),
                 Line::from(vec![Span::from("Historic: ").bold(), historic_text]),
                 Line::from(vec![Span::from("Timeless: ").bold(), timeless_text]),
                 Line::from(vec![Span::from("Alchemy: ").bold(), alchemy_text]),

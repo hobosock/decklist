@@ -617,7 +617,6 @@ pub struct Legalities {
     pub timeless: Legality,
     pub gladiator: Legality,
     pub pioneer: Legality,
-    pub explorer: Legality,
     pub modern: Legality,
     pub legacy: Legality,
     pub pauper: Legality,
@@ -644,7 +643,6 @@ impl Default for Legalities {
             timeless: Legality::NotLegal,
             gladiator: Legality::NotLegal,
             pioneer: Legality::NotLegal,
-            explorer: Legality::NotLegal,
             modern: Legality::NotLegal,
             legacy: Legality::NotLegal,
             pauper: Legality::NotLegal,
@@ -855,7 +853,8 @@ pub fn find_all_objs(cardname: &str, database: &[ScryfallCard]) -> Option<Vec<Sc
         let dual = card.layout == CardLayouts::Transform
             || card.layout == CardLayouts::Flip
             || card.layout == CardLayouts::Split
-            || card.layout == CardLayouts::ModalDualFaceCard;
+            || card.layout == CardLayouts::ModalDualFaceCard
+            || card.layout == CardLayouts::Adventure;
         if remove_diacritics(cardname) == remove_diacritics(&card.name)
             || (remove_diacritics(&card.name).contains(&remove_diacritics(cardname)) && dual)
         {

@@ -1,6 +1,6 @@
 use crate::{
     collection::{check_legality, check_missing, FormatLegal},
-    database::scryfall::{find_all_objs, get_min_price, min_price_fmt},
+    database::scryfall::{get_min_price, make_safe_name, match_card, min_price_fmt},
     startup::{
         config_check, database_check, database_management, directory_check, dl_scryfall_latest,
         load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
@@ -376,6 +376,10 @@ impl App {
             if !self.database_done {
                 if let Ok(dc) = self.database_channel.1.try_recv() {
                     self.debug_string += "received message from database thread\n";
+                    // TODO: delete this
+                    self.debug_string += &make_safe_name("Sagu Wildling", true);
+                    let result = dc.database_cards.get("Sagu Wildling");
+                    self.debug_string += &format!("\n{:?}\n", result.is_some());
                     self.database_done = true;
                     self.dc.database_exists = dc.database_exists;
                     self.dc.database_status = dc.database_status;
@@ -514,8 +518,8 @@ impl App {
                             let mut checks = Vec::new();
                             if missing_cards.is_some() {
                                 for card in missing_cards.as_ref().unwrap() {
-                                    let missing_str = if database.is_some() {
-                                        check_missing(database.as_ref().unwrap(), card)
+                                    let missing_str = if !database.is_empty() {
+                                        check_missing(&database, card)
                                     } else {
                                         "".to_string()
                                     };
@@ -531,9 +535,10 @@ impl App {
                     self.redraw = true;
                 }
             }
-            if self.dc.database_cards.is_some() && self.decklist.is_some() && !self.legal_started {
+            if !self.dc.database_cards.is_empty() && self.decklist.is_some() && !self.legal_started
+            {
                 let decklist = self.decklist.clone().unwrap();
-                let database = self.dc.database_cards.clone().unwrap();
+                let database = self.dc.database_cards.clone();
                 let legal_msg = self.legal_msg.0.clone();
                 self.legal_counter += 1;
                 thread::spawn(move || {
@@ -550,7 +555,7 @@ impl App {
                 self.redraw = true;
             }
             if !self.waiting_for_price
-                && self.dc.database_cards.is_some()
+                && !self.dc.database_cards.is_empty()
                 && self.missing_cards.is_some()
                 && !self.loading_collection
                 && !self.loading_decklist
@@ -558,7 +563,7 @@ impl App {
             {
                 self.waiting_for_price = true;
                 let price_channel = self.missing_scryfall_msg.0.clone();
-                let database = self.dc.database_cards.clone().unwrap();
+                let database = self.dc.database_cards.clone();
                 let currency = self.config.currency.clone();
                 let missing_cards = self.missing_cards.clone().unwrap();
                 let mut missing_scryfall = Vec::new();
@@ -567,8 +572,8 @@ impl App {
                     let mut missing_price = Vec::new();
                     for card in missing_cards {
                         let (price_str, price) =
-                            if let Some(scryfall_match) = find_all_objs(&card.name, &database) {
-                                let price = get_min_price(&scryfall_match, currency.clone());
+                            if let Some(scryfall_match) = match_card(&card.name, &database) {
+                                let price = get_min_price(&[scryfall_match], currency.clone());
                                 (
                                     min_price_fmt(price, card.quantity, currency.clone()),
                                     price * card.quantity as f64,

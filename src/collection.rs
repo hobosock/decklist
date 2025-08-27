@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     error::Error,
     fmt::Display,
     fs::{self, File},
@@ -8,7 +9,7 @@ use csv::ReaderBuilder;
 use diacritics::remove_diacritics;
 use serde::Deserialize;
 
-use crate::database::scryfall::{match_card, CardLayouts, Legality, ScryfallCard};
+use crate::database::scryfall::{make_safe_name, match_card, Legality, ScryfallCard};
 
 /// simple card format for collections and decklists
 /// just the card name and the quantity
@@ -163,24 +164,14 @@ pub async fn find_missing_cards(
 
 /// compares missing card to Scryfall database (if included)
 /// if the card isn't found in the database, prompt the user to check the spelling
-pub fn check_missing(database: &[ScryfallCard], missing_card: &CollectionCard) -> String {
-    let mut found = false;
-    for card in database.iter() {
-        // NOTE: dual/split/transform card names are tricky - match on a partial
-        let dual = card.layout == CardLayouts::Transform
-            || card.layout == CardLayouts::Flip
-            || card.layout == CardLayouts::Split
-            || card.layout == CardLayouts::ModalDualFaceCard
-            || card.layout == CardLayouts::Adventure;
-        if remove_diacritics(&missing_card.name) == remove_diacritics(&card.name)
-            || (remove_diacritics(&card.name).contains(&remove_diacritics(&missing_card.name))
-                && dual)
-        {
-            found = true;
-            break;
-        }
-    }
-    if found {
+pub fn check_missing(
+    database: &HashMap<String, ScryfallCard>,
+    missing_card: &CollectionCard,
+) -> String {
+    // NOTE: making this always true in case someone puts the full dual card names
+    // could check for slashes to make it cleaner, but whatevs, the function already does that
+    let missing_safe = make_safe_name(&missing_card.name, true);
+    if database.contains_key(&missing_safe) {
         "".to_string()
     } else {
         " <------ This card was not found in database.  Check spelling?".to_string()
@@ -252,11 +243,14 @@ fn convert_legal(legal: Legality) -> bool {
 }
 
 /// checks decklist for legality, and outputs a structure with the results
-pub async fn check_legality(decklist: &[CollectionCard], database: &[ScryfallCard]) -> FormatLegal {
+pub async fn check_legality(
+    decklist: &[CollectionCard],
+    database: &HashMap<String, ScryfallCard>,
+) -> FormatLegal {
     // TODO: check number of cards?
     let mut legal = FormatLegal::default();
     for card in decklist {
-        if let Some(matched) = match_card(&card.name, database) {
+        if let Some(matched) = match_card(&card.name, &database) {
             // go through every format - if still true, check current card legality
             if legal.standard {
                 legal.standard = convert_legal(matched.legalities.standard); // only go to false

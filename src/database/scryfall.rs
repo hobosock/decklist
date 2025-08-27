@@ -1,4 +1,4 @@
-use std::{error::Error, fs, path::PathBuf};
+use std::{collections::HashMap, error::Error, fs, path::PathBuf};
 
 use diacritics::remove_diacritics;
 use serde::{Deserialize, Serialize};
@@ -817,55 +817,42 @@ pub struct ScryfallPurchase {
 }
 
 /// reads provided JSON database file and produces a vector of ScryfallCard objects
-pub fn read_scryfall_database(path: &PathBuf) -> Result<Vec<ScryfallCard>, Box<dyn Error>> {
+pub fn read_scryfall_database(
+    path: &PathBuf,
+) -> Result<HashMap<String, ScryfallCard>, Box<dyn Error>> {
     let file_text = fs::read_to_string(path)?;
     let test: Result<Vec<ScryfallCard>, serde_json::Error> = serde_json::from_str(&file_text);
-    Ok(test?)
-}
-
-// TODO: maybe replace the manual implementations of this elsewhere?
-/// takes card name and finds matching card in database
-pub fn match_card(cardname: &str, database: &[ScryfallCard]) -> Option<ScryfallCard> {
-    let mut found = None;
-    for card in database.iter() {
-        // NOTE: dual/split/transform card names are tricky - match on a partial
-        let dual = card.layout == CardLayouts::Transform
-            || card.layout == CardLayouts::Flip
-            || card.layout == CardLayouts::Split
-            || card.layout == CardLayouts::ModalDualFaceCard;
-        if remove_diacritics(cardname) == remove_diacritics(&card.name)
-            || (remove_diacritics(&card.name).contains(&remove_diacritics(cardname)) && dual)
-        {
-            found = Some(card.clone());
-            break;
-        }
-    }
-    found
-}
-
-/// This function finds every matching Scryfall object in the database file
-/// This is slower than match_card(), where you only care to check if the card name exists.
-/// Finding all matches is necessary to provide a price for every card, since some listings do not
-/// have any price information.
-pub fn find_all_objs(cardname: &str, database: &[ScryfallCard]) -> Option<Vec<ScryfallCard>> {
-    let mut matches = Vec::new();
-    for card in database.iter() {
+    let card_vec = test?;
+    let mut result_map: HashMap<String, ScryfallCard> = HashMap::new();
+    for card in &card_vec {
         let dual = card.layout == CardLayouts::Transform
             || card.layout == CardLayouts::Flip
             || card.layout == CardLayouts::Split
             || card.layout == CardLayouts::ModalDualFaceCard
             || card.layout == CardLayouts::Adventure;
-        if remove_diacritics(cardname) == remove_diacritics(&card.name)
-            || (remove_diacritics(&card.name).contains(&remove_diacritics(cardname)) && dual)
-        {
-            matches.push(card.clone());
-        }
+        let safe_name = make_safe_name(&card.name, dual);
+        // TODO: get all currencies in here
+        result_map
+            .entry(safe_name)
+            .and_modify(|existing| {
+                if card.prices.usd < existing.prices.usd {
+                    *existing = card.clone();
+                }
+            })
+            .or_insert(card.clone());
     }
-    if !matches.is_empty() {
-        Some(matches)
-    } else {
-        None
-    }
+    Ok(result_map)
+}
+
+// TODO: maybe replace the manual implementations of this elsewhere?
+/// takes card name and finds matching card in database
+pub fn match_card(
+    cardname: &str,
+    database: &HashMap<String, ScryfallCard>,
+) -> Option<ScryfallCard> {
+    let safe_name = make_safe_name(cardname, true);
+    let found = database.get(&safe_name);
+    found.cloned()
 }
 
 pub fn get_min_price(cards: &[ScryfallCard], currency: PriceType) -> f64 {
@@ -900,4 +887,15 @@ pub fn min_price_fmt(price: f64, quantity: u64, currency: PriceType) -> String {
         currency_str,
         price * quantity as f64
     )
+}
+
+/// takes a card name as a string and removes the diacritics and any slashes
+/// shortens dual layout cards to just the first name
+pub fn make_safe_name(name: &str, dual: bool) -> String {
+    let mut safe_name = remove_diacritics(name);
+    if dual && name.contains("//") {
+        let splits: Vec<&str> = safe_name.split("//").collect();
+        safe_name = splits[0].trim().to_string();
+    }
+    safe_name
 }

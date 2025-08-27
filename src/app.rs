@@ -1,6 +1,6 @@
 use crate::{
     collection::{check_legality, check_missing, FormatLegal},
-    database::scryfall::{get_min_price, make_safe_name, match_card, min_price_fmt},
+    database::scryfall::{get_min_price, match_card, min_price_fmt},
     startup::{
         config_check, database_check, database_management, directory_check, dl_scryfall_latest,
         load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
@@ -376,10 +376,6 @@ impl App {
             if !self.database_done {
                 if let Ok(dc) = self.database_channel.1.try_recv() {
                     self.debug_string += "received message from database thread\n";
-                    // TODO: delete this
-                    self.debug_string += &make_safe_name("Sagu Wildling", true);
-                    let result = dc.database_cards.get("Sagu Wildling");
-                    self.debug_string += &format!("\n{:?}\n", result.is_some());
                     self.database_done = true;
                     self.dc.database_exists = dc.database_exists;
                     self.dc.database_status = dc.database_status;

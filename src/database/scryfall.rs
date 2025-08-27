@@ -893,8 +893,8 @@ pub fn min_price_fmt(price: f64, quantity: u64, currency: PriceType) -> String {
 /// shortens dual layout cards to just the first name
 pub fn make_safe_name(name: &str, dual: bool) -> String {
     let mut safe_name = remove_diacritics(name);
-    if dual && name.contains('\\') {
-        let splits: Vec<&str> = safe_name.split('\\').collect();
+    if dual && name.contains("//") {
+        let splits: Vec<&str> = safe_name.split("//").collect();
         safe_name = splits[0].trim().to_string();
     }
     safe_name

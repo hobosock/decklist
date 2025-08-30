@@ -366,7 +366,6 @@ impl App {
                     "data directory exists, checking for database on {:?}\n",
                     &dc_path
                 );
-                // TODO: database age check counter?
                 thread::spawn(move || {
                     let database_results = task::block_on(database_check(dc_path, max_age));
                     if let Ok(()) = database_channel.send(database_results) {};
@@ -431,9 +430,10 @@ impl App {
                 self.dc.database_status = format!("Loading {} ...", self.dc.filename);
                 let database_channel = self.database_channel.0.clone();
                 let dc_clone = self.dc.clone();
+                let currency = self.config.currency.clone();
                 self.database_counter += 1;
                 thread::spawn(move || {
-                    let database_results = task::block_on(load_database_file(dc_clone));
+                    let database_results = task::block_on(load_database_file(dc_clone, currency));
                     if let Ok(()) = database_channel.send(database_results) {};
                 });
                 self.dc.ready_load = false;
@@ -658,7 +658,6 @@ impl App {
     /// key events
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match key_event.code {
-            // TODO: delete after app framework is complete
             KeyCode::Char('1') => self.active_tab = MenuTabs::Welcome,
             KeyCode::Char('2') => self.active_tab = MenuTabs::Database,
             KeyCode::Char('3') => self.active_tab = MenuTabs::Collection,

@@ -908,7 +908,7 @@ pub fn make_safe_name(name: &str, dual: bool) -> String {
 }
 
 /// saves the Scryfall database in a serial file
-pub fn serialize_database(
+pub async fn serialize_database(
     map: &HashMap<String, ScryfallCard>,
     path: PathBuf,
 ) -> Result<(), Box<dyn Error>> {

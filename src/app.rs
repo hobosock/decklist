@@ -1,6 +1,6 @@
 use crate::{
     collection::{check_legality, check_missing, FormatLegal},
-    database::scryfall::{get_min_price, match_card, min_price_fmt},
+    database::scryfall::{get_min_price, match_card, min_price_fmt, serialize_database},
     startup::{
         config_check, database_check, database_management, directory_check, dl_scryfall_latest,
         load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
@@ -453,10 +453,15 @@ impl App {
             // if a Scryfall database is loaded and the hashmap is done, serialize and save as a
             // custom database JSON with a single copy of each card with the lowest price so the
             // hashmap doesn't have to be filtered each time the program starts
+            let map = self.dc.database_cards.clone();
+            let path = self.dc.database_path.clone();
             if self.load_done {
                 // TODO: eventually make another condition for when the short database has been
                 // loaded instead of a Scryfall file
-                //
+                thread::spawn(move || {
+                    // TODO: mpsc channel to communicate error messages
+                    let short_write_results = task::block_on(serialize_database(&map, path));
+                });
             }
             if self.loading_collection {
                 if let Ok(msg) = self.collection_channel.1.try_recv() {

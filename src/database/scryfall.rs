@@ -916,6 +916,7 @@ pub async fn serialize_database(
     let mut file_path = path.join(PathBuf::from("decklist_"));
     let date_str = Local::now().to_string();
     file_path.push(PathBuf::from(date_str));
+    file_path.push(".json");
     let mut file = File::create(path)?;
     file.write_all(json_string.as_bytes())?;
     Ok(())

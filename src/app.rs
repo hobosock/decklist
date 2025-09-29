@@ -77,6 +77,7 @@ pub struct App {
     pub dl_done: bool,
     pub load_started: bool,
     pub load_done: bool,
+    pub short_started: bool,
     pub short_done: bool, // shorter JSON w/ single copy and lowest price
     pub os: SupportedOS,
     pub directory_exist: bool,
@@ -101,6 +102,10 @@ pub struct App {
         std::sync::mpsc::Receiver<DatabaseCheck>,
     ),
     pub dc: DatabaseCheck,
+    pub short_channel: (
+        std::sync::mpsc::Sender<String>,
+        std::sync::mpsc::Receiver<String>,
+    ),
     pub collection: Option<Vec<CollectionCard>>,
     pub collection_file_name: Option<String>,
     pub collection_file: Option<File>,
@@ -169,6 +174,7 @@ pub struct App {
     pub legal_counter: u64,
     pub missing_counter: u64,
     pub price_counter: u64,
+    pub short_counter: u64,
 }
 
 impl Default for App {
@@ -185,6 +191,7 @@ impl Default for App {
             dl_done: false,
             load_started: false,
             load_done: false,
+            short_started: false,
             short_done: false,
             os: SupportedOS::default(),
             directory_exist: false,
@@ -200,6 +207,7 @@ impl Default for App {
             config_channel: std::sync::mpsc::channel(),
             database_channel: std::sync::mpsc::channel(),
             dc: DatabaseCheck::default(),
+            short_channel: std::sync::mpsc::channel(),
             collection: None,
             collection_file_name: None,
             collection_file: None,
@@ -247,6 +255,7 @@ impl Default for App {
             legal_counter: 0,
             missing_counter: 0,
             price_counter: 0,
+            short_counter: 0,
         }
     }
 }
@@ -455,13 +464,34 @@ impl App {
             // hashmap doesn't have to be filtered each time the program starts
             let map = self.dc.database_cards.clone();
             let path = self.dc.database_path.clone();
-            if self.load_done {
+            let debug_channel = self.debug_channel.0.clone();
+            if self.load_done && !self.short_started {
+                // TODO: reset this when loading a new database
+                self.short_started = true;
                 // TODO: eventually make another condition for when the short database has been
                 // loaded instead of a Scryfall file
+                let short_channel = self.short_channel.0.clone();
+                self.short_counter += 1;
                 thread::spawn(move || {
-                    // TODO: mpsc channel to communicate error messages
-                    let short_write_results = task::block_on(serialize_database(&map, path));
+                    if let Ok(()) = debug_channel.send("Starting short thread...\n".to_string()) {};
+                    match task::block_on(serialize_database(&map, path)) {
+                        Ok(()) => short_channel.send(
+                            "Compact decklist database generated successfully.\n".to_string(),
+                        ),
+                        Err(e) => short_channel.send(e.to_string()),
+                    }
                 });
+            }
+            if self.short_started && !self.short_done {
+                if let Ok(s) = self.debug_channel.1.try_recv() {
+                    self.debug_string += &s;
+                }
+                // TODO: eventually move this behind a different boolean
+                if let Ok(s) = self.short_channel.1.try_recv() {
+                    self.debug_string += &s;
+                    // TODO: reset this when reloading database
+                    self.short_done = true;
+                }
             }
             if self.loading_collection {
                 if let Ok(msg) = self.collection_channel.1.try_recv() {

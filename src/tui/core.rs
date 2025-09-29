@@ -231,6 +231,11 @@ fn draw_debug_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: Bl
             Span::from(space_padding(10)),
             Span::from(format!("{}", app.price_counter)).cyan(),
         ]),
+        Line::from(vec![
+            Span::from("Short Check: ").bold(),
+            Span::from(space_padding(10)),
+            Span::from(format!("{}", app.short_counter)).cyan(),
+        ]),
     ]);
     frame.render_widget(main_block, chunk);
     frame.render_widget(debug_text, sections[0]);

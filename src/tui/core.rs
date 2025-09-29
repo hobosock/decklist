@@ -86,7 +86,7 @@ pub fn ui(
 
     // define main/center area for display
     let version =
-        Line::from(vec!["| Decklist v0.4.0 |".into()]).style(Style::default().cyan().bold());
+        Line::from(vec!["| Decklist v0.5.0 |".into()]).style(Style::default().cyan().bold());
     let main_block = Block::default()
         .title_bottom(version)
         .title_alignment(Alignment::Center)

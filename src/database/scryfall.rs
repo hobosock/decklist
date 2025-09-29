@@ -1,11 +1,18 @@
-use std::{collections::HashMap, error::Error, fs, path::PathBuf};
+use std::{
+    collections::HashMap,
+    error::Error,
+    fs::{self, File},
+    io::Write,
+    path::PathBuf,
+};
 
+use chrono::Local;
 use diacritics::remove_diacritics;
 use serde::{Deserialize, Serialize};
 
 /// structure for all Scryfall card data for a unique card
 // TODO: map to JSON field names manually?  or rename?
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct ScryfallCard {
     pub object: ScryfallObject,
     pub id: String,
@@ -130,7 +137,7 @@ impl ScryfallCard {
 }
 
 /// represents different kinds of Scryfall objects
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum ScryfallObject {
     #[serde(rename = "card")]
     Card,
@@ -139,7 +146,7 @@ pub enum ScryfallObject {
 }
 
 /// different languages for MTG printings
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum Languages {
     #[serde(rename = "en")]
     English,
@@ -180,7 +187,7 @@ pub enum Languages {
 }
 
 /// different card layout options
-#[derive(Deserialize, Clone, PartialEq)]
+#[derive(Deserialize, Clone, PartialEq, Serialize)]
 pub enum CardLayouts {
     #[serde(rename = "normal")]
     Normal,
@@ -233,7 +240,7 @@ pub enum CardLayouts {
 }
 
 /// scryfall image statuses
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum ImageStatus {
     #[serde(rename = "highres_scan")]
     HighRes,
@@ -246,7 +253,7 @@ pub enum ImageStatus {
 }
 
 /// struct for all Scryfall image uris
-#[derive(Deserialize, Default, Clone)]
+#[derive(Deserialize, Default, Clone, Serialize)]
 pub struct ImageUris {
     pub small: String,
     pub normal: String,
@@ -257,7 +264,7 @@ pub struct ImageUris {
 }
 
 /// MtG card types
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum CardTypes {
     Artifact,
     Creature,
@@ -267,7 +274,7 @@ pub enum CardTypes {
     Land,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum MtGColors {
     #[serde(rename = "W")]
     White,
@@ -282,7 +289,7 @@ pub enum MtGColors {
 }
 
 /// MtG card keywords
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum MtGKeyWords {
     Trample,
     Haste,
@@ -596,7 +603,7 @@ pub enum MtGKeyWords {
 }
 
 /// card legality options for a specific format
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum Legality {
     #[serde(rename = "legal")]
     Legal,
@@ -609,7 +616,7 @@ pub enum Legality {
 }
 
 /// contains legal status of card in every Scryfall format
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct Legalities {
     pub standard: Legality,
     pub future: Legality,
@@ -663,7 +670,7 @@ impl Default for Legalities {
 }
 
 /// different game formats
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum GameFormat {
     #[serde(rename = "paper")]
     Paper,
@@ -678,7 +685,7 @@ pub enum GameFormat {
 }
 
 /// different kinds of finishes recognized by Scryfall
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum ScryfallFinishes {
     #[serde(rename = "foil")]
     Foil,
@@ -689,7 +696,7 @@ pub enum ScryfallFinishes {
 }
 
 /// Scryfall set classifications
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum ScryfallSetType {
     #[serde(rename = "core")]
     Core,
@@ -740,7 +747,7 @@ pub enum ScryfallSetType {
 }
 
 /// card rarities
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum MtGRarity {
     #[serde(rename = "common")]
     Common,
@@ -757,7 +764,7 @@ pub enum MtGRarity {
 }
 
 /// card border colors
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub enum BorderColor {
     #[serde(rename = "white")]
     White,
@@ -774,7 +781,7 @@ pub enum BorderColor {
 }
 
 /// Scryfall prices struct
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct ScryfallPrices {
     pub usd: Option<String>,        // Option<f64>,
     pub usd_foil: Option<String>,   // Option<f64>,
@@ -793,7 +800,7 @@ pub enum PriceType {
 }
 
 /// struct of all of Scryfall's related URIs
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct ScryfallRelated {
     #[serde(default)]
     pub gatherer: String,
@@ -806,7 +813,7 @@ pub struct ScryfallRelated {
 }
 
 /// struct of Scryfall purchase URIs
-#[derive(Deserialize, Default, Clone)]
+#[derive(Deserialize, Default, Clone, Serialize)]
 pub struct ScryfallPurchase {
     #[serde(default)]
     pub tcgplayer: String,
@@ -898,4 +905,18 @@ pub fn make_safe_name(name: &str, dual: bool) -> String {
         safe_name = splits[0].trim().to_string();
     }
     safe_name
+}
+
+/// saves the Scryfall database in a serial file
+pub fn serialize_database(
+    map: &HashMap<String, ScryfallCard>,
+    path: PathBuf,
+) -> Result<(), Box<dyn Error>> {
+    let json_string = serde_json::to_string_pretty(map)?;
+    let mut file_path = path.join(PathBuf::from("decklist_"));
+    let date_str = Local::now().to_string();
+    file_path.push(PathBuf::from(date_str));
+    let mut file = File::create(path)?;
+    file.write_all(json_string.as_bytes())?;
+    Ok(())
 }

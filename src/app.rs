@@ -77,6 +77,7 @@ pub struct App {
     pub dl_done: bool,
     pub load_started: bool,
     pub load_done: bool,
+    pub short_done: bool, // shorter JSON w/ single copy and lowest price
     pub os: SupportedOS,
     pub directory_exist: bool,
     pub data_directory_exist: bool,
@@ -184,6 +185,7 @@ impl Default for App {
             dl_done: false,
             load_started: false,
             load_done: false,
+            short_done: false,
             os: SupportedOS::default(),
             directory_exist: false,
             data_directory_exist: false,
@@ -447,6 +449,14 @@ impl App {
                     self.database_ok = !self.dc.database_cards.is_empty();
                     self.redraw = true;
                 }
+            }
+            // if a Scryfall database is loaded and the hashmap is done, serialize and save as a
+            // custom database JSON with a single copy of each card with the lowest price so the
+            // hashmap doesn't have to be filtered each time the program starts
+            if self.load_done {
+                // TODO: eventually make another condition for when the short database has been
+                // loaded instead of a Scryfall file
+                //
             }
             if self.loading_collection {
                 if let Ok(msg) = self.collection_channel.1.try_recv() {

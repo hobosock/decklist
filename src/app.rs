@@ -464,7 +464,6 @@ impl App {
             // hashmap doesn't have to be filtered each time the program starts
             let map = self.dc.database_cards.clone();
             let path = self.dc.database_path.clone();
-            let debug_channel = self.debug_channel.0.clone();
             if self.load_done && !self.short_started && !self.short_done {
                 // TODO: reset this when loading a new database
                 self.short_started = true;
@@ -472,15 +471,14 @@ impl App {
                 // loaded instead of a Scryfall file
                 let short_channel = self.short_channel.0.clone();
                 self.short_counter += 1;
-                thread::spawn(move || {
-                    if let Ok(()) = debug_channel.send("Starting short thread...\n".to_string()) {};
-                    match task::block_on(serialize_database(&map, path)) {
+                thread::spawn(
+                    move || match task::block_on(serialize_database(&map, path)) {
                         Ok(()) => short_channel.send(
                             "Compact decklist database generated successfully.\n".to_string(),
                         ),
                         Err(e) => short_channel.send(e.to_string()),
-                    }
-                });
+                    },
+                );
             }
             if self.short_started && !self.short_done {
                 if let Ok(s) = self.debug_channel.1.try_recv() {

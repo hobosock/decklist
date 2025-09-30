@@ -465,7 +465,7 @@ impl App {
             let map = self.dc.database_cards.clone();
             let path = self.dc.database_path.clone();
             let debug_channel = self.debug_channel.0.clone();
-            if self.load_done && !self.short_started {
+            if self.load_done && !self.short_started && !self.short_done {
                 // TODO: reset this when loading a new database
                 self.short_started = true;
                 // TODO: eventually make another condition for when the short database has been

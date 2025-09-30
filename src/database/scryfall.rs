@@ -913,11 +913,13 @@ pub async fn serialize_database(
     path: PathBuf,
 ) -> Result<(), Box<dyn Error>> {
     let json_string = serde_json::to_string_pretty(map)?;
-    let mut file_path = path.join(PathBuf::from("decklist_"));
-    let date_str = Local::now().to_string();
-    file_path.push(PathBuf::from(date_str));
-    file_path.push(".json");
-    let mut file = File::create(path)?;
+    let mut file_path_str = String::from("decklist_");
+    let date = Local::now();
+    let date_str = format!("{}", date.format("%Y%m%d"));
+    file_path_str.push_str(&date_str);
+    file_path_str.push_str(".json");
+    let file_path = path.join(PathBuf::from(file_path_str));
+    let mut file = File::create(file_path)?;
     file.write_all(json_string.as_bytes())?;
     Ok(())
 }

@@ -462,9 +462,9 @@ impl App {
             // if a Scryfall database is loaded and the hashmap is done, serialize and save as a
             // custom database JSON with a single copy of each card with the lowest price so the
             // hashmap doesn't have to be filtered each time the program starts
-            let map = self.dc.database_cards.clone();
-            let path = self.dc.database_path.clone();
             if self.load_done && !self.short_started && !self.short_done {
+                let map = self.dc.database_cards.clone();
+                let path = self.dc.database_path.clone();
                 // TODO: reset this when loading a new database
                 self.short_started = true;
                 // TODO: eventually make another condition for when the short database has been

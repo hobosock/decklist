@@ -139,7 +139,22 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
     let database_status;
     let database_cards = HashMap::new();
     let mut filename = String::new();
-    if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
+    // check for shortened decklist database first, then check for scryfall database
+    if let Some((fname, date)) = find_decklist_database(data_path.clone()) {
+        let current_time: DateTime<Local> = Local::now();
+        let formatted_time = current_time.format("%Y%m%d").to_string();
+        let time_num = formatted_time.parse::<u64>().unwrap_or(0);
+        // NOTE: quick protection against subtract with overflow if file was downloaded same day
+        if date < time_num && (time_num - date) > (max_age * 100) {
+            need_download = true;
+            database_status = format!("Decklist database file found, but it is older than {} days.  Downloading new file...", max_age);
+            filename = fname;
+        } else {
+            database_status = format!("Recent decklist database found: {}", fname.clone());
+            filename = fname;
+            ready_load = true;
+        }
+    } else if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
         let current_time: DateTime<Local> = Local::now();
         let formatted_time = current_time.format("%Y%m%d%H%M%S").to_string();
         let time_num = formatted_time.parse::<u64>().unwrap_or(0);
@@ -207,6 +222,36 @@ fn find_scryfall_database(data_path: PathBuf) -> Option<(String, u64)> {
                 options.push(f_string.clone());
                 let sections: Vec<&str> = f_string.split("-").collect();
                 let subsections: Vec<&str> = sections[2].split('.').collect(); // ######.json
+                match subsections[0].trim().parse::<u64>() {
+                    Ok(num) => dates.push(num),
+                    Err(_) => dates.push(0),
+                }
+            }
+        }
+    }
+    if let Some((index, date)) = dates.iter().enumerate().max_by_key(|&(_, &value)| value) {
+        Some((options[index].clone(), *date))
+    } else {
+        None
+    }
+}
+
+/// finds the latest custom database created by decklist
+/// returns the full file path as Some(String) if found
+/// returns None if no file exists
+fn find_decklist_database(data_path: PathBuf) -> Option<(String, u64)> {
+    let items = fs::read_dir(data_path)
+        .expect("database directory should exist if calling find_decklist_database()");
+    let mut options = Vec::new();
+    let mut dates = Vec::new();
+    for item in items {
+        if let Ok(f) = item {
+            let f_str = f.file_name().into_string();
+            if f_str.is_ok() && f_str.as_ref().unwrap().contains("decklist") {
+                let f_string = f_str.unwrap();
+                options.push(f_string.clone());
+                let sections: Vec<&str> = f_string.split("_").collect();
+                let subsections: Vec<&str> = sections[1].split('.').collect();
                 match subsections[0].trim().parse::<u64>() {
                     Ok(num) => dates.push(num),
                     Err(_) => dates.push(0),

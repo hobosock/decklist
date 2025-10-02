@@ -130,6 +130,13 @@ impl Default for DatabaseCheck {
     }
 }
 
+// indicates if database to be loaded is a Scryfall JSON or a decklist JSON, as they need to be
+// parsed differently
+pub enum DatabaseType {
+    Scryfall,
+    Decklist,
+}
+
 /// checks for existence of database file
 /// if none are found, prompt to download a new file
 pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {

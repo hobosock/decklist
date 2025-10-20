@@ -744,6 +744,8 @@ pub enum ScryfallSetType {
     FromTheVault,
     #[serde(rename = "spellbook")]
     Spellbook,
+    #[serde(rename = "eternal")]
+    Eternal,
 }
 
 /// card rarities
@@ -823,7 +825,7 @@ pub struct ScryfallPurchase {
     pub cardhoarder: String,
 }
 
-/// reads provided JSON database file and produces a vector of ScryfallCard objects
+/// reads provided JSON database file and produces a hash map of ScryfallCard objects
 pub fn read_scryfall_database(
     path: &PathBuf,
 ) -> Result<HashMap<String, ScryfallCard>, Box<dyn Error>> {
@@ -849,6 +851,15 @@ pub fn read_scryfall_database(
             .or_insert(card.clone());
     }
     Ok(result_map)
+}
+
+/// reads custom decklist JSON file
+pub fn read_decklist_database(
+    path: &PathBuf,
+) -> Result<HashMap<String, ScryfallCard>, Box<dyn Error>> {
+    let file_text = fs::read_to_string(path)?;
+    let map: HashMap<String, ScryfallCard> = serde_json::from_str(&file_text)?;
+    Ok(map)
 }
 
 // TODO: maybe replace the manual implementations of this elsewhere?

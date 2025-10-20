@@ -14,7 +14,7 @@ use ureq::Agent;
 
 use crate::{
     config::DecklistConfig,
-    database::scryfall::{read_scryfall_database, ScryfallCard},
+    database::scryfall::{read_decklist_database, read_scryfall_database, ScryfallCard},
 };
 
 /*
@@ -114,6 +114,7 @@ pub struct DatabaseCheck {
     pub filename: String,
     pub need_dl: bool,
     pub ready_load: bool,
+    pub db_type: DatabaseType,
 }
 
 impl Default for DatabaseCheck {
@@ -126,12 +127,14 @@ impl Default for DatabaseCheck {
             filename: String::new(),
             need_dl: false,
             ready_load: false,
+            db_type: DatabaseType::Scryfall,
         }
     }
 }
 
 // indicates if database to be loaded is a Scryfall JSON or a decklist JSON, as they need to be
 // parsed differently
+#[derive(Clone)]
 pub enum DatabaseType {
     Scryfall,
     Decklist,
@@ -143,6 +146,7 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
     let mut need_download = false;
     let mut ready_load = false;
     let mut database_exists = false;
+    let mut db_type = DatabaseType::Scryfall;
     let database_status;
     let database_cards = HashMap::new();
     let mut filename = String::new();
@@ -160,6 +164,7 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
             database_status = format!("Recent decklist database found: {}", fname.clone());
             filename = fname;
             ready_load = true;
+            db_type = DatabaseType::Decklist;
         }
     } else if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
         let current_time: DateTime<Local> = Local::now();
@@ -193,6 +198,7 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
         need_dl: need_download,
         ready_load,
         filename,
+        db_type,
     }
 }
 
@@ -201,14 +207,28 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
 pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
     let mut data_path = dc.database_path.clone();
     data_path.push(dc.filename.clone());
-    match read_scryfall_database(&data_path) {
-        Ok(cards) => {
-            dc.database_exists = true;
-            dc.database_status = format!("Loaded cards from: {}", dc.filename);
-            dc.database_cards = cards;
-            dc.ready_load = false; // file loaded successfully, don't need to do again
+    // determine if loading a Scryfall or Decklist database
+    match dc.db_type {
+        DatabaseType::Decklist => match read_decklist_database(&data_path) {
+            Ok(cards) => {
+                dc.database_exists = true;
+                dc.database_status = format!("Loaded cards from: {}", dc.filename);
+                dc.database_cards = cards;
+                dc.ready_load = false;
+            }
+            Err(e) => dc.database_status = e.to_string(),
+        },
+        DatabaseType::Scryfall => {
+            match read_scryfall_database(&data_path) {
+                Ok(cards) => {
+                    dc.database_exists = true;
+                    dc.database_status = format!("Loaded cards from: {}", dc.filename);
+                    dc.database_cards = cards;
+                    dc.ready_load = false; // file loaded successfully, don't need to do again
+                }
+                Err(e) => dc.database_status = e.to_string(),
+            }
         }
-        Err(e) => dc.database_status = e.to_string(),
     }
     dc
 }

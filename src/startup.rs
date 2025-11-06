@@ -208,7 +208,6 @@ pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
     let mut data_path = dc.database_path.clone();
     data_path.push(dc.filename.clone());
     // determine if loading a Scryfall or Decklist database
-    println!("{:?}", dc.db_type);
     match dc.db_type {
         DatabaseType::Decklist => match read_decklist_database(&data_path) {
             Ok(cards) => {

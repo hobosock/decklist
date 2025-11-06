@@ -394,6 +394,7 @@ impl App {
                     self.dc.need_dl = dc.need_dl;
                     self.dc.ready_load = dc.ready_load;
                     self.dc.filename = dc.filename;
+                    self.dc.db_type = dc.db_type;
                     if dc.database_exists {
                         self.database_ok = true;
                     }

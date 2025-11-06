@@ -3,7 +3,7 @@ use crate::{
     database::scryfall::{get_min_price, match_card, min_price_fmt, serialize_database},
     startup::{
         config_check, database_check, database_management, directory_check, dl_scryfall_latest,
-        load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
+        load_database_file, ConfigCheck, DatabaseCheck, DatabaseType, DirectoryCheck,
     },
 };
 use arboard::Clipboard;
@@ -462,7 +462,14 @@ impl App {
             // if a Scryfall database is loaded and the hashmap is done, serialize and save as a
             // custom database JSON with a single copy of each card with the lowest price so the
             // hashmap doesn't have to be filtered each time the program starts
-            if self.load_done && !self.short_started && !self.short_done {
+            // only do it if loading a Scryfall JSON
+            if self.load_done
+                && !self.short_started
+                && !self.short_done
+                && self.dc.db_type == DatabaseType::Scryfall
+                && self.dc.database_cards.len() > 10
+            // don't overwrite database if loading fails
+            {
                 let map = self.dc.database_cards.clone();
                 let path = self.dc.database_path.clone();
                 // TODO: reset this when loading a new database

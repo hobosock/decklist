@@ -134,7 +134,7 @@ impl Default for DatabaseCheck {
 
 // indicates if database to be loaded is a Scryfall JSON or a decklist JSON, as they need to be
 // parsed differently
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DatabaseType {
     Scryfall,
     Decklist,
@@ -208,6 +208,7 @@ pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
     let mut data_path = dc.database_path.clone();
     data_path.push(dc.filename.clone());
     // determine if loading a Scryfall or Decklist database
+    println!("{:?}", dc.db_type);
     match dc.db_type {
         DatabaseType::Decklist => match read_decklist_database(&data_path) {
             Ok(cards) => {

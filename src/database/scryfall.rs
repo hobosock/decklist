@@ -841,7 +841,6 @@ pub fn read_scryfall_database(
             || card.layout == CardLayouts::ModalDualFaceCard
             || card.layout == CardLayouts::Adventure;
         let safe_name = make_safe_name(&card.name, dual);
-        // TODO: get all currencies in here
         result_map
             .entry(safe_name)
             .and_modify(|existing| {
@@ -864,7 +863,7 @@ pub fn read_scryfall_database(
                         Err(_) => {}
                     }
                 }
-                if c_price > 0.0 && c_price < e_price {
+                if c_price > 0.0 && (c_price < e_price || e_price == 0.0) {
                     *existing = card.clone();
                 }
             })

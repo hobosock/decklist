@@ -7,10 +7,9 @@ pub mod database;
 pub mod startup;
 pub mod tui;
 
+use app::App;
 use ratatui_explorer::{FileExplorer, Theme};
 use tui::core::{init, restore};
-
-use app::App;
 
 #[tokio::main]
 async fn main() -> Result<(), io::Error> {

@@ -14,7 +14,7 @@ use ureq::Agent;
 
 use crate::{
     config::DecklistConfig,
-    database::scryfall::{read_scryfall_database, ScryfallCard},
+    database::scryfall::{read_decklist_database, read_scryfall_database, PriceType, ScryfallCard},
 };
 
 /*
@@ -114,6 +114,7 @@ pub struct DatabaseCheck {
     pub filename: String,
     pub need_dl: bool,
     pub ready_load: bool,
+    pub db_type: DatabaseType,
 }
 
 impl Default for DatabaseCheck {
@@ -126,8 +127,17 @@ impl Default for DatabaseCheck {
             filename: String::new(),
             need_dl: false,
             ready_load: false,
+            db_type: DatabaseType::Scryfall,
         }
     }
+}
+
+// indicates if database to be loaded is a Scryfall JSON or a decklist JSON, as they need to be
+// parsed differently
+#[derive(Clone, Debug, PartialEq)]
+pub enum DatabaseType {
+    Scryfall,
+    Decklist,
 }
 
 /// checks for existence of database file
@@ -136,10 +146,27 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
     let mut need_download = false;
     let mut ready_load = false;
     let mut database_exists = false;
+    let mut db_type = DatabaseType::Scryfall;
     let database_status;
     let database_cards = HashMap::new();
     let mut filename = String::new();
-    if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
+    // check for shortened decklist database first, then check for scryfall database
+    if let Some((fname, date)) = find_decklist_database(data_path.clone()) {
+        let current_time: DateTime<Local> = Local::now();
+        let formatted_time = current_time.format("%Y%m%d").to_string();
+        let time_num = formatted_time.parse::<u64>().unwrap_or(0);
+        // NOTE: quick protection against subtract with overflow if file was downloaded same day
+        if date < time_num && (time_num - date) > (max_age * 100) {
+            need_download = true;
+            database_status = format!("Decklist database file found, but it is older than {} days.  Downloading new file...", max_age);
+            filename = fname;
+        } else {
+            database_status = format!("Recent decklist database found: {}", fname.clone());
+            filename = fname;
+            ready_load = true;
+            db_type = DatabaseType::Decklist;
+        }
+    } else if let Some((fname, date)) = find_scryfall_database(data_path.clone()) {
         let current_time: DateTime<Local> = Local::now();
         let formatted_time = current_time.format("%Y%m%d%H%M%S").to_string();
         let time_num = formatted_time.parse::<u64>().unwrap_or(0);
@@ -171,22 +198,37 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
         need_dl: need_download,
         ready_load,
         filename,
+        db_type,
     }
 }
 
 /// attempts to load given database file
 /// updates status accordingly
-pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
+pub async fn load_database_file(mut dc: DatabaseCheck, currency: PriceType) -> DatabaseCheck {
     let mut data_path = dc.database_path.clone();
     data_path.push(dc.filename.clone());
-    match read_scryfall_database(&data_path) {
-        Ok(cards) => {
-            dc.database_exists = true;
-            dc.database_status = format!("Loaded cards from: {}", dc.filename);
-            dc.database_cards = cards;
-            dc.ready_load = false; // file loaded successfully, don't need to do again
+    // determine if loading a Scryfall or Decklist database
+    match dc.db_type {
+        DatabaseType::Decklist => match read_decklist_database(&data_path) {
+            Ok(cards) => {
+                dc.database_exists = true;
+                dc.database_status = format!("Loaded cards from: {}", dc.filename);
+                dc.database_cards = cards;
+                dc.ready_load = false;
+            }
+            Err(e) => dc.database_status = e.to_string(),
+        },
+        DatabaseType::Scryfall => {
+            match read_scryfall_database(&data_path, currency) {
+                Ok(cards) => {
+                    dc.database_exists = true;
+                    dc.database_status = format!("Loaded cards from: {}", dc.filename);
+                    dc.database_cards = cards;
+                    dc.ready_load = false; // file loaded successfully, don't need to do again
+                }
+                Err(e) => dc.database_status = e.to_string(),
+            }
         }
-        Err(e) => dc.database_status = e.to_string(),
     }
     dc
 }
@@ -207,6 +249,36 @@ fn find_scryfall_database(data_path: PathBuf) -> Option<(String, u64)> {
                 options.push(f_string.clone());
                 let sections: Vec<&str> = f_string.split("-").collect();
                 let subsections: Vec<&str> = sections[2].split('.').collect(); // ######.json
+                match subsections[0].trim().parse::<u64>() {
+                    Ok(num) => dates.push(num),
+                    Err(_) => dates.push(0),
+                }
+            }
+        }
+    }
+    if let Some((index, date)) = dates.iter().enumerate().max_by_key(|&(_, &value)| value) {
+        Some((options[index].clone(), *date))
+    } else {
+        None
+    }
+}
+
+/// finds the latest custom database created by decklist
+/// returns the full file path as Some(String) if found
+/// returns None if no file exists
+fn find_decklist_database(data_path: PathBuf) -> Option<(String, u64)> {
+    let items = fs::read_dir(data_path)
+        .expect("database directory should exist if calling find_decklist_database()");
+    let mut options = Vec::new();
+    let mut dates = Vec::new();
+    for item in items {
+        if let Ok(f) = item {
+            let f_str = f.file_name().into_string();
+            if f_str.is_ok() && f_str.as_ref().unwrap().contains("decklist") {
+                let f_string = f_str.unwrap();
+                options.push(f_string.clone());
+                let sections: Vec<&str> = f_string.split("_").collect();
+                let subsections: Vec<&str> = sections[1].split('.').collect();
                 match subsections[0].trim().parse::<u64>() {
                     Ok(num) => dates.push(num),
                     Err(_) => dates.push(0),
@@ -263,7 +335,7 @@ async fn scryfall_bulk_request(
     // first request gets URI for latest data
     let resp: ScryfallResponse = scryfall_agent
         .get("https://api.scryfall.com/bulk-data/default-cards")
-        .header("User-Agent", "decklistv0.3.1")
+        .header("User-Agent", "decklistv0.5.0")
         .header("Accept", "*/*")
         .call()?
         .body_mut()
@@ -278,7 +350,7 @@ async fn scryfall_bulk_request(
     // second request downloads JSON file to user data directory
     let download_request = scryfall_agent
         .get(uri)
-        .header("User-Agent", "decklistv0.3.1")
+        .header("User-Agent", "decklistv0.5.0")
         .header("Accept", "application/file")
         .call()?
         .body_mut()

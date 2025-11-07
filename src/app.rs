@@ -1,9 +1,9 @@
 use crate::{
     collection::{check_legality, check_missing, FormatLegal},
-    database::scryfall::{get_min_price, match_card, min_price_fmt},
+    database::scryfall::{get_min_price, match_card, min_price_fmt, serialize_database},
     startup::{
         config_check, database_check, database_management, directory_check, dl_scryfall_latest,
-        load_database_file, ConfigCheck, DatabaseCheck, DirectoryCheck,
+        load_database_file, ConfigCheck, DatabaseCheck, DatabaseType, DirectoryCheck,
     },
 };
 use arboard::Clipboard;
@@ -77,6 +77,8 @@ pub struct App {
     pub dl_done: bool,
     pub load_started: bool,
     pub load_done: bool,
+    pub short_started: bool,
+    pub short_done: bool, // shorter JSON w/ single copy and lowest price
     pub os: SupportedOS,
     pub directory_exist: bool,
     pub data_directory_exist: bool,
@@ -100,6 +102,10 @@ pub struct App {
         std::sync::mpsc::Receiver<DatabaseCheck>,
     ),
     pub dc: DatabaseCheck,
+    pub short_channel: (
+        std::sync::mpsc::Sender<String>,
+        std::sync::mpsc::Receiver<String>,
+    ),
     pub collection: Option<Vec<CollectionCard>>,
     pub collection_file_name: Option<String>,
     pub collection_file: Option<File>,
@@ -168,6 +174,7 @@ pub struct App {
     pub legal_counter: u64,
     pub missing_counter: u64,
     pub price_counter: u64,
+    pub short_counter: u64,
 }
 
 impl Default for App {
@@ -184,6 +191,8 @@ impl Default for App {
             dl_done: false,
             load_started: false,
             load_done: false,
+            short_started: false,
+            short_done: false,
             os: SupportedOS::default(),
             directory_exist: false,
             data_directory_exist: false,
@@ -198,6 +207,7 @@ impl Default for App {
             config_channel: std::sync::mpsc::channel(),
             database_channel: std::sync::mpsc::channel(),
             dc: DatabaseCheck::default(),
+            short_channel: std::sync::mpsc::channel(),
             collection: None,
             collection_file_name: None,
             collection_file: None,
@@ -245,6 +255,7 @@ impl Default for App {
             legal_counter: 0,
             missing_counter: 0,
             price_counter: 0,
+            short_counter: 0,
         }
     }
 }
@@ -383,6 +394,7 @@ impl App {
                     self.dc.need_dl = dc.need_dl;
                     self.dc.ready_load = dc.ready_load;
                     self.dc.filename = dc.filename;
+                    self.dc.db_type = dc.db_type;
                     if dc.database_exists {
                         self.database_ok = true;
                     }
@@ -431,9 +443,10 @@ impl App {
                 self.dc.database_status = format!("Loading {} ...", self.dc.filename);
                 let database_channel = self.database_channel.0.clone();
                 let dc_clone = self.dc.clone();
+                let currency = self.config.currency.clone();
                 self.database_counter += 1;
                 thread::spawn(move || {
-                    let database_results = task::block_on(load_database_file(dc_clone));
+                    let database_results = task::block_on(load_database_file(dc_clone, currency));
                     if let Ok(()) = database_channel.send(database_results) {};
                 });
                 self.dc.ready_load = false;
@@ -446,6 +459,45 @@ impl App {
                     self.load_started = false;
                     self.database_ok = !self.dc.database_cards.is_empty();
                     self.redraw = true;
+                }
+            }
+            // if a Scryfall database is loaded and the hashmap is done, serialize and save as a
+            // custom database JSON with a single copy of each card with the lowest price so the
+            // hashmap doesn't have to be filtered each time the program starts
+            // only do it if loading a Scryfall JSON
+            if self.load_done
+                && !self.short_started
+                && !self.short_done
+                && self.dc.db_type == DatabaseType::Scryfall
+                && self.dc.database_cards.len() > 10
+            // don't overwrite database if loading fails
+            {
+                let map = self.dc.database_cards.clone();
+                let path = self.dc.database_path.clone();
+                // TODO: reset this when loading a new database
+                self.short_started = true;
+                // TODO: eventually make another condition for when the short database has been
+                // loaded instead of a Scryfall file
+                let short_channel = self.short_channel.0.clone();
+                self.short_counter += 1;
+                thread::spawn(
+                    move || match task::block_on(serialize_database(&map, path)) {
+                        Ok(()) => short_channel.send(
+                            "Compact decklist database generated successfully.\n".to_string(),
+                        ),
+                        Err(e) => short_channel.send(e.to_string()),
+                    },
+                );
+            }
+            if self.short_started && !self.short_done {
+                if let Ok(s) = self.debug_channel.1.try_recv() {
+                    self.debug_string += &s;
+                }
+                // TODO: eventually move this behind a different boolean
+                if let Ok(s) = self.short_channel.1.try_recv() {
+                    self.debug_string += &s;
+                    // TODO: reset this when reloading database
+                    self.short_done = true;
                 }
             }
             if self.loading_collection {

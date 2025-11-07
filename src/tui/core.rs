@@ -86,7 +86,7 @@ pub fn ui(
 
     // define main/center area for display
     let version =
-        Line::from(vec!["| Decklist v0.4.0 |".into()]).style(Style::default().cyan().bold());
+        Line::from(vec!["| Decklist v0.5.0 |".into()]).style(Style::default().cyan().bold());
     let main_block = Block::default()
         .title_bottom(version)
         .title_alignment(Alignment::Center)
@@ -230,6 +230,11 @@ fn draw_debug_main(app: &mut App, frame: &mut Frame, chunk: Rect, main_block: Bl
             Span::from("Price Check: ").bold(),
             Span::from(space_padding(10)),
             Span::from(format!("{}", app.price_counter)).cyan(),
+        ]),
+        Line::from(vec![
+            Span::from("Short Check: ").bold(),
+            Span::from(space_padding(10)),
+            Span::from(format!("{}", app.short_counter)).cyan(),
         ]),
     ]);
     frame.render_widget(main_block, chunk);

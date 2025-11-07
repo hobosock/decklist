@@ -443,9 +443,10 @@ impl App {
                 self.dc.database_status = format!("Loading {} ...", self.dc.filename);
                 let database_channel = self.database_channel.0.clone();
                 let dc_clone = self.dc.clone();
+                let currency = self.config.currency.clone();
                 self.database_counter += 1;
                 thread::spawn(move || {
-                    let database_results = task::block_on(load_database_file(dc_clone));
+                    let database_results = task::block_on(load_database_file(dc_clone, currency));
                     if let Ok(()) = database_channel.send(database_results) {};
                 });
                 self.dc.ready_load = false;

@@ -828,6 +828,7 @@ pub struct ScryfallPurchase {
 /// reads provided JSON database file and produces a hash map of ScryfallCard objects
 pub fn read_scryfall_database(
     path: &PathBuf,
+    currency: PriceType,
 ) -> Result<HashMap<String, ScryfallCard>, Box<dyn Error>> {
     let file_text = fs::read_to_string(path)?;
     let test: Result<Vec<ScryfallCard>, serde_json::Error> = serde_json::from_str(&file_text);
@@ -844,7 +845,26 @@ pub fn read_scryfall_database(
         result_map
             .entry(safe_name)
             .and_modify(|existing| {
-                if card.prices.usd < existing.prices.usd {
+                let (c_opt, e_opt) = match currency {
+                    PriceType::USD => (card.prices.usd.clone(), existing.prices.usd.clone()),
+                    PriceType::Euro => (card.prices.eur.clone(), existing.prices.eur.clone()),
+                    PriceType::Tix => (card.prices.tix.clone(), existing.prices.tix.clone()),
+                };
+                let mut e_price = 0.0;
+                let mut c_price = 0.0;
+                if let Some(e_str) = e_opt {
+                    match e_str.parse() {
+                        Ok(p) => e_price = p,
+                        Err(_) => {}
+                    }
+                }
+                if let Some(c_str) = c_opt {
+                    match c_str.parse() {
+                        Ok(p) => c_price = p,
+                        Err(_) => {}
+                    }
+                }
+                if c_price > 0.0 && c_price < e_price {
                     *existing = card.clone();
                 }
             })

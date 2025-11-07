@@ -14,7 +14,7 @@ use ureq::Agent;
 
 use crate::{
     config::DecklistConfig,
-    database::scryfall::{read_decklist_database, read_scryfall_database, ScryfallCard},
+    database::scryfall::{read_decklist_database, read_scryfall_database, PriceType, ScryfallCard},
 };
 
 /*
@@ -204,7 +204,7 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
 
 /// attempts to load given database file
 /// updates status accordingly
-pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
+pub async fn load_database_file(mut dc: DatabaseCheck, currency: PriceType) -> DatabaseCheck {
     let mut data_path = dc.database_path.clone();
     data_path.push(dc.filename.clone());
     // determine if loading a Scryfall or Decklist database
@@ -219,7 +219,7 @@ pub async fn load_database_file(mut dc: DatabaseCheck) -> DatabaseCheck {
             Err(e) => dc.database_status = e.to_string(),
         },
         DatabaseType::Scryfall => {
-            match read_scryfall_database(&data_path) {
+            match read_scryfall_database(&data_path, currency) {
                 Ok(cards) => {
                     dc.database_exists = true;
                     dc.database_status = format!("Loaded cards from: {}", dc.filename);

@@ -156,7 +156,7 @@ pub async fn database_check(data_path: PathBuf, max_age: u64) -> DatabaseCheck {
         let formatted_time = current_time.format("%Y%m%d").to_string();
         let time_num = formatted_time.parse::<u64>().unwrap_or(0);
         // NOTE: quick protection against subtract with overflow if file was downloaded same day
-        if date < time_num && (time_num - date) > (max_age * 100) {
+        if date < time_num && (time_num - date) > max_age {
             need_download = true;
             database_status = format!("Decklist database file found, but it is older than {} days.  Downloading new file...", max_age);
             filename = fname;

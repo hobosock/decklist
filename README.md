@@ -1,3 +1,5 @@
+**development has moved:** https://codeberg.org/bajablastoise/decklist
+
 # Decklist
 Decklist is a simple TUI program to compare your Magic: the Gathering collection with a decklist and see which cards you are missing.  The missing cards can be exported to a text file or copied directly to your clipboard for bulk entry into must online card markets.
 
